@@ -1,0 +1,9 @@
+*.a
+*.o
+*.d
+/.objs
+*.vscode
+*.cache
+*.swp
+compile_commands.json
+a.out
