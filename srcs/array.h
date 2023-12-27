@@ -16,7 +16,7 @@ typedef struct {
 
 #define __readonly
 
-extern array_allocator_t allocator;
+extern array_allocator_t __array_allocator__;
 
 typedef struct {
   void *_ptr;            /* data pointer */
@@ -39,7 +39,7 @@ typedef struct {
 #endif
 } array_t;
 
-# define SETTLED(array) array->settled
+#define SETTLED(array) array->settled
 
 /* Creates an array and adjusts its starting capacity to be at least
  * enough to hold 'n' elements.

@@ -3,28 +3,27 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 
-array_allocator_t allocator = {
+array_allocator_t __array_allocator__ = {
     ._memory_alloc = malloc, ._memory_realloc = realloc, ._memory_free = free};
 
 static inline bool array_init(array_t **self, size_t size) {
-  *self = allocator._memory_alloc(sizeof(array_t));
+  *self = __array_allocator__._memory_alloc(sizeof(array_t));
   if (unlikely(!*self))
     return (false);
 
-  (void)memset(*self, 0x00, sizeof(array_t));
+  (void)builtin_memset(*self, 0x00, sizeof(array_t));
 
-  (*self)->_ptr = allocator._memory_alloc(size);
+  (*self)->_ptr = __array_allocator__._memory_alloc(size);
   if (unlikely(!(*self)->_ptr)) {
-    allocator._memory_free(*self);
+    __array_allocator__._memory_free(*self);
     return (false);
   }
   return (true);
 }
 
 array_t *array_create(size_t elt_size, size_t n, void (*free)(void *)) {
-  __retval_if_fail__(SIZE_MAX / elt_size > n, 0);
+  RETURN_VAL_IF_FAIL(SIZE_MAX / elt_size > n, 0);
 
   array_t *array = NULL;
   size_t initial_cap;
@@ -50,18 +49,18 @@ array_t *array_create(size_t elt_size, size_t n, void (*free)(void *)) {
 }
 
 void *array_extract(const array_t *src, size_t sp, size_t ep) {
-  __retval_if_fail__(src, 0);
-  __retval_if_fail__(sp < ep, 0);
+  RETURN_VAL_IF_FAIL(src, 0);
+  RETURN_VAL_IF_FAIL(sp < ep, 0);
 
-  void *ptr = allocator._memory_alloc((ep - sp) * src->_elt_size);
+  void *ptr = __array_allocator__._memory_alloc((ep - sp) * src->_elt_size);
   if (likely(ptr))
-    (void)memcpy(ptr, INDEX_TO_PTR(src, sp), ep - sp);
+    (void)builtin_memcpy(ptr, INDEX_TO_PTR(src, sp), ep - sp);
 
   return (ptr);
 }
 
 array_t *array_pull(const array_t *src, st64_t sp, st64_t ep) {
-  __retval_if_fail__(src, 0);
+  RETURN_VAL_IF_FAIL(src, 0);
 
   if (sp < 0)
     sp += src->_nmemb;
@@ -84,14 +83,14 @@ array_t *array_pull(const array_t *src, st64_t sp, st64_t ep) {
   arr->settled = true;
 
   if (sp < ep) {
-    (void)memcpy(arr->_ptr, INDEX_TO_PTR(src, sp), size);
+    (void)builtin_memcpy(arr->_ptr, INDEX_TO_PTR(src, sp), size);
 
   } else {
     void *ptr = arr->_ptr;
     size_t step = src->_elt_size;
 
     while (sp != ep) {
-      (void)memcpy(ptr, INDEX_TO_PTR(src, sp), step);
+      (void)builtin_memcpy(ptr, INDEX_TO_PTR(src, sp), step);
       ptr = (char *)ptr + step;
       sp--;
     }
@@ -107,7 +106,7 @@ array_t *array_pull(const array_t *src, st64_t sp, st64_t ep) {
 }
 
 void array_purge(array_t *self) {
-  __ret_if_fail__(self);
+  RETURN_IF_FAIL(self);
 
   //(void)memset(self->_ptr, '\xff', self->_cap);
   if (self->_free) {
@@ -123,20 +122,20 @@ void array_purge(array_t *self) {
 }
 
 void array_kill(array_t *self) {
-  __ret_if_fail__(self);
+  RETURN_IF_FAIL(self);
 
   array_purge(self);
   if (self->_cap)
-    allocator._memory_free(self->_ptr);
+    __array_allocator__._memory_free(self->_ptr);
 
-  allocator._memory_free(self);
+  __array_allocator__._memory_free(self);
 }
 
 bool array_adjust(array_t *self, size_t n) {
-  __retval_if_fail__(self, 0);
-  __retval_if_fail__(SIZE_MAX - self->_nmemb > n, 0);
-  __retval_if_fail__(SIZE_MAX / self->_elt_size > n, 0);
-  __retval_if_fail__(!SETTLED(self), 0);
+  RETURN_VAL_IF_FAIL(self, 0);
+  RETURN_VAL_IF_FAIL(SIZE_MAX - self->_nmemb > n, 0);
+  RETURN_VAL_IF_FAIL(SIZE_MAX / self->_elt_size > n, 0);
+  RETURN_VAL_IF_FAIL(!SETTLED(self), 0);
 
   size_t size;
   void *ptr;
@@ -152,7 +151,7 @@ bool array_adjust(array_t *self, size_t n) {
 
   n < self->_cap << 1 ? (size = self->_cap << 1) : (size = n);
 
-  ptr = allocator._memory_realloc(self->_ptr, size);
+  ptr = __array_allocator__._memory_realloc(self->_ptr, size);
   if (unlikely(!ptr))
     return (false);
 
@@ -169,12 +168,12 @@ bool array_adjust(array_t *self, size_t n) {
 }
 
 bool array_push(array_t *self, void *elem) {
-  __retval_if_fail__(self, 0);
+  RETURN_VAL_IF_FAIL(self, 0);
 
   if (unlikely(!array_adjust(self, 1)))
     return (false);
 
-  (void)memmove(INDEX_TO_PTR(self, self->_nmemb), elem, self->_elt_size);
+  (void)builtin_memmove(INDEX_TO_PTR(self, self->_nmemb), elem, self->_elt_size);
 
   ++self->_nmemb;
 
@@ -185,13 +184,13 @@ bool array_push(array_t *self, void *elem) {
 }
 
 void array_pop(array_t *self, void *into) {
-  __ret_if_fail__(self);
-  __ret_if_fail__(self->_nmemb);
+  RETURN_IF_FAIL(self);
+  RETURN_IF_FAIL(self->_nmemb);
 
   void *p = INDEX_TO_PTR(self, --self->_nmemb);
 
   if (into)
-    (void)memcpy(into, p, self->_elt_size);
+    (void)builtin_memcpy(into, p, self->_elt_size);
 
   if (self->_free)
     self->_free(p);
@@ -206,16 +205,16 @@ bool array_pushf(array_t *self, void *e) {
 }
 
 void array_popf(array_t *self, void *into) {
-  __ret_if_fail__(self);
+  RETURN_IF_FAIL(self);
   
   if (into)
-    (void)memcpy(into, self->_ptr, self->_elt_size);
+    (void)builtin_memcpy(into, self->_ptr, self->_elt_size);
   array_evict(self, 0);
 }
 
 bool array_insert(array_t *self, size_t p, void *node) {
-  __retval_if_fail__(self, 0);
-  __retval_if_fail__(p <= self->_nmemb, 0);
+  RETURN_VAL_IF_FAIL(self, 0);
+  RETURN_VAL_IF_FAIL(p <= self->_nmemb, 0);
 
   if (unlikely(!array_adjust(self, 1)))
     return (false);
@@ -223,11 +222,11 @@ bool array_insert(array_t *self, size_t p, void *node) {
   if (!self->_nmemb || p == self->_nmemb)
     goto skip;
 
-  (void)memmove(INDEX_TO_PTR(self, p + 1), INDEX_TO_PTR(self, p),
+  (void)builtin_memmove(INDEX_TO_PTR(self, p + 1), INDEX_TO_PTR(self, p),
                 self->_nmemb * self->_elt_size - p * self->_elt_size);
 
 skip:
-  (void)memcpy(INDEX_TO_PTR(self, p), node, self->_elt_size);
+  (void)builtin_memcpy(INDEX_TO_PTR(self, p), node, self->_elt_size);
   ++self->_nmemb;
 
 #if defined(ENABLE_STATISTICS)
@@ -237,8 +236,8 @@ skip:
 }
 
 bool array_inject(array_t *self, size_t p, const void *src, size_t n) {
-  __retval_if_fail__(self, 0);
-  __retval_if_fail__(p <= self->_nmemb, 0);
+  RETURN_VAL_IF_FAIL(self, 0);
+  RETURN_VAL_IF_FAIL(p <= self->_nmemb, 0);
 
   if (unlikely(!array_adjust(self, n)))
     return (false);
@@ -246,11 +245,11 @@ bool array_inject(array_t *self, size_t p, const void *src, size_t n) {
   if (!self->_nmemb || p == self->_nmemb)
     goto skip;
 
-  (void)memmove(INDEX_TO_PTR(self, p + n), INDEX_TO_PTR(self, p),
+  (void)builtin_memmove(INDEX_TO_PTR(self, p + n), INDEX_TO_PTR(self, p),
                 self->_elt_size * (self->_nmemb - p));
 
 skip:
-  (void)memmove(INDEX_TO_PTR(self, p), src, self->_elt_size * n);
+  (void)builtin_memmove(INDEX_TO_PTR(self, p), src, self->_elt_size * n);
   self->_nmemb += n;
 
 #if defined(ENABLE_STATISTICS)
@@ -260,13 +259,13 @@ skip:
 }
 
 bool array_append(array_t *self, const void *src, size_t n) {
-  __retval_if_fail__(self, 0);
-  __retval_if_fail__(src, 0);
+  RETURN_VAL_IF_FAIL(self, 0);
+  RETURN_VAL_IF_FAIL(src, 0);
 
   if (unlikely(!array_adjust(self, n)))
     return (false);
 
-  (void)memmove(INDEX_TO_PTR(self, self->_nmemb), src, self->_elt_size * n);
+  (void)builtin_memmove(INDEX_TO_PTR(self, self->_nmemb), src, self->_elt_size * n);
 
   self->_nmemb += n;
 
@@ -277,8 +276,8 @@ bool array_append(array_t *self, const void *src, size_t n) {
 }
 
 const void *array_at(const array_t *self, size_t pos) {
-  __retval_if_fail__(self, 0);
-  __retval_if_fail__(self->_nmemb >= pos, 0);
+  RETURN_VAL_IF_FAIL(self, 0);
+  RETURN_VAL_IF_FAIL(self->_nmemb >= pos, 0);
 
   if (unlikely(pos >= self->_nmemb || 0 > pos))
     return (NULL);
@@ -291,8 +290,8 @@ const void *array_unsafe_at(const array_t *self, size_t pos) {
 }
 
 void *array_access(const array_t *self, size_t pos) {
-  __retval_if_fail__(self, 0);
-  __retval_if_fail__(self->_nmemb >= pos, 0);
+  RETURN_VAL_IF_FAIL(self, 0);
+  RETURN_VAL_IF_FAIL(self->_nmemb >= pos, 0);
 
   if (unlikely(pos >= self->_nmemb || 0 > pos))
     return (NULL);
@@ -305,8 +304,8 @@ void *array_unsafe_access(const array_t *self, size_t pos) {
 }
 
 void array_evict(array_t *self, size_t p) {
-  __ret_if_fail__(self);
-  __ret_if_fail__(p < self->_nmemb);
+  RETURN_IF_FAIL(self);
+  RETURN_IF_FAIL(p < self->_nmemb);
 
   size_t __n = (self->_nmemb - p) * self->_elt_size;
 
@@ -314,7 +313,7 @@ void array_evict(array_t *self, size_t p) {
     self->_free(INDEX_TO_PTR(self, p));
 
   if (p <= --self->_nmemb) {
-    (void)memmove(INDEX_TO_PTR(self, p), INDEX_TO_PTR(self, p + 1),
+    (void)builtin_memmove(INDEX_TO_PTR(self, p), INDEX_TO_PTR(self, p + 1),
                 __n - self->_elt_size);
   }
 
@@ -324,9 +323,9 @@ void array_evict(array_t *self, size_t p) {
 }
 
 void array_wipe(array_t *self, size_t sp, size_t ep) {
-  __ret_if_fail__(self);
-  __ret_if_fail__(sp < ep);
-  __ret_if_fail__(ep - sp <= self->_nmemb);
+  RETURN_IF_FAIL(self);
+  RETURN_IF_FAIL(sp < ep);
+  RETURN_IF_FAIL(ep - sp <= self->_nmemb);
 
   size_t __n = ep - sp;
 
@@ -336,7 +335,7 @@ void array_wipe(array_t *self, size_t sp, size_t ep) {
       self->_free(INDEX_TO_PTR(self, i++));
   }
 
-  (void)memmove(INDEX_TO_PTR(self, sp), INDEX_TO_PTR(self, ep),
+  (void)builtin_memmove(INDEX_TO_PTR(self, sp), INDEX_TO_PTR(self, ep),
                 (self->_nmemb - sp - __n) * self->_elt_size);
 
   self->_nmemb -= __n;
@@ -347,7 +346,7 @@ void array_wipe(array_t *self, size_t sp, size_t ep) {
 }
 
 void array_clear(array_t *self) {
-  __ret_if_fail__(self);
+  RETURN_IF_FAIL(self);
 
   self->_nmemb = 0;
 
@@ -357,9 +356,9 @@ void array_clear(array_t *self) {
 }
 
 void array_swap(array_t *self, size_t a, size_t b) {
-  __ret_if_fail__(self);
-  __ret_if_fail__(a < self->_nmemb);
-  __ret_if_fail__(b < self->_nmemb);
+  RETURN_IF_FAIL(self);
+  RETURN_IF_FAIL(a < self->_nmemb);
+  RETURN_IF_FAIL(b < self->_nmemb);
 
   char *p = INDEX_TO_PTR(self, a);
   char *q = INDEX_TO_PTR(self, b);
@@ -377,44 +376,44 @@ void *array_head(const array_t *self) {
 }
 
 void *array_tail(const array_t *self) {
-  __retval_if_fail__(self, NULL);
+  RETURN_VAL_IF_FAIL(self, NULL);
 
   return (array_access(self, self->_nmemb));
 }
 
 size_t array_size(const array_t *self) {
-  __retval_if_fail__(self, -1);
+  RETURN_VAL_IF_FAIL(self, -1);
 
   return (self->_nmemb);
 }
 
 size_t array_cap(const array_t *self) {
-  __retval_if_fail__(self, -1);
+  RETURN_VAL_IF_FAIL(self, -1);
 
   return (self->_cap);
 }
 
 void array_settle(array_t *self) {
-  __ret_if_fail__(self);
+  RETURN_IF_FAIL(self);
   
   self->settled = true;
 }
 
 void array_unsettle(array_t *self) {
-  __ret_if_fail__(self);
+  RETURN_IF_FAIL(self);
   
   self->settled = false;
 }
 
 bool array_is_settled(array_t *self) {
-  __retval_if_fail__(self, false);
+  RETURN_VAL_IF_FAIL(self, false);
   
   return (self->settled);
 }
 
 
 void array_stats(const array_t *self) {
-  __ret_if_fail__(self);
+  RETURN_IF_FAIL(self);
 
   (void)fprintf(stderr, "ARRAY MEMORY STATISTICS:\n");
   (void)fprintf(

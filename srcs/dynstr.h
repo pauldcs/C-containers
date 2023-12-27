@@ -13,9 +13,15 @@ typedef struct {
 } dynstr_t;
 
 /* Creates a new empty dynamic string and adjusts its starting capacity
- * to be at least enough to hold 'n' + 1 characters
+ * to be at least enough to hold 'n' + 1 characters.
  */
 dynstr_t *dynstr_create(size_t n);
+
+/* Marks the dynamic string as 'settled', which means that the pointer
+ * '_ptr' will no longer change due to a reallocation. The buffer cannot be
+ * reallocated.
+ */
+void dynstr_done(dynstr_t *self);
 
 /* Creates a new dynamic string from the data pointed to by 'src',
  * while copying a maximum of 'n' bytes.
