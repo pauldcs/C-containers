@@ -25,4 +25,5 @@ CFLAGS_DBG              := \
 	-fno-optimize-sibling-calls 
 
 SRCS := \
-	array.c
+	array.c \
+	dynstr.c 

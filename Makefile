@@ -28,12 +28,13 @@ specs: all
 	$(CC) \
 		$(CFLAGS) \
 		$(CFLAGS_DBG) \
-		unit/tests/tests_basic.c \
-		unit/tests/tests_usage.c \
-		unit/srcs/unit_tests.c \
-		unit/srcs/main.c \
+		unit-tests/tests/array_basic.c \
+		unit-tests/tests/array_usage.c \
+		unit-tests/tests/dynstr_basic.c \
+		unit-tests/srcs/unit_tests.c \
+		unit-tests/srcs/main.c \
 		-I srcs \
-		-I unit/srcs \
+		-I unit-tests/srcs \
 		-o prog \
 		-L. \
 		libcont.dylib \

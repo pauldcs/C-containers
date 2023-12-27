@@ -38,6 +38,7 @@ array_t *array_create(size_t elt_size, size_t n, void (*free)(void *)) {
     array->_elt_size = elt_size;
     array->_free = free;
     array->_cap = initial_cap;
+    array->settled = false;
   }
 
 #if defined(ENABLE_STATISTICS)
@@ -80,6 +81,7 @@ array_t *array_pull(const array_t *src, st64_t sp, st64_t ep) {
   arr->_free = src->_free;
   arr->_cap = size;
   arr->_nmemb = n_elems;
+  arr->settled = true;
 
   if (sp < ep) {
     (void)memcpy(arr->_ptr, INDEX_TO_PTR(src, sp), size);
@@ -107,7 +109,7 @@ array_t *array_pull(const array_t *src, st64_t sp, st64_t ep) {
 void array_purge(array_t *self) {
   __ret_if_fail__(self);
 
-  (void)memset(self->_ptr, '\xff', self->_cap);
+  //(void)memset(self->_ptr, '\xff', self->_cap);
   if (self->_free) {
     while (self->_nmemb--)
       self->_free(INDEX_TO_PTR(self, self->_nmemb));
@@ -134,9 +136,13 @@ bool array_adjust(array_t *self, size_t n) {
   __retval_if_fail__(self, 0);
   __retval_if_fail__(SIZE_MAX - self->_nmemb > n, 0);
   __retval_if_fail__(SIZE_MAX / self->_elt_size > n, 0);
+  __retval_if_fail__(!SETTLED(self), 0);
 
   size_t size;
   void *ptr;
+
+  if (unlikely(SETTLED(self)))
+    return (false);
 
   n += self->_nmemb;
   n *= self->_elt_size;
@@ -195,11 +201,13 @@ void array_pop(array_t *self, void *into) {
 #endif
 }
 
-bool array_pushf(array_t *self, void *e) { return (array_insert(self, 0, e)); }
+bool array_pushf(array_t *self, void *e) {
+  return (array_insert(self, 0, e));
+}
 
 void array_popf(array_t *self, void *into) {
   __ret_if_fail__(self);
-
+  
   if (into)
     (void)memcpy(into, self->_ptr, self->_elt_size);
   array_evict(self, 0);
@@ -279,9 +287,6 @@ const void *array_at(const array_t *self, size_t pos) {
 }
 
 const void *array_unsafe_at(const array_t *self, size_t pos) {
-  __retval_if_fail__(self, 0);
-  __retval_if_fail__(self->_nmemb >= pos, 0);
-
   return (INDEX_TO_PTR(self, pos));
 }
 
@@ -296,9 +301,6 @@ void *array_access(const array_t *self, size_t pos) {
 }
 
 void *array_unsafe_access(const array_t *self, size_t pos) {
-  __retval_if_fail__(self, 0);
-  __retval_if_fail__(self->_nmemb >= pos, 0);
-
   return (INDEX_TO_PTR(self, pos));
 }
 
@@ -306,20 +308,19 @@ void array_evict(array_t *self, size_t p) {
   __ret_if_fail__(self);
   __ret_if_fail__(p < self->_nmemb);
 
-#if defined(ENABLE_STATISTICS)
-  self->_stats.n_bytes_in_use -= self->_elt_size;
-#endif
-
   size_t __n = (self->_nmemb - p) * self->_elt_size;
 
   if (self->_free)
     self->_free(INDEX_TO_PTR(self, p));
 
-  if (p > --self->_nmemb)
-    return;
-
-  (void)memmove(INDEX_TO_PTR(self, p), INDEX_TO_PTR(self, p + 1),
+  if (p <= --self->_nmemb) {
+    (void)memmove(INDEX_TO_PTR(self, p), INDEX_TO_PTR(self, p + 1),
                 __n - self->_elt_size);
+  }
+
+#if defined(ENABLE_STATISTICS)
+  self->_stats.n_bytes_in_use -= self->_elt_size;
+#endif
 }
 
 void array_wipe(array_t *self, size_t sp, size_t ep) {
@@ -372,21 +373,13 @@ void array_swap(array_t *self, size_t a, size_t b) {
 }
 
 void *array_head(const array_t *self) {
-  __retval_if_fail__(self, NULL);
-
-  if (unlikely(!self->_nmemb))
-    return (NULL);
-
-  return (self->_ptr);
+  return (array_access(self, 0));
 }
 
 void *array_tail(const array_t *self) {
   __retval_if_fail__(self, NULL);
 
-  if (unlikely(!self->_nmemb))
-    return (NULL);
-
-  return (INDEX_TO_PTR(self, self->_nmemb - 1));
+  return (array_access(self, self->_nmemb));
 }
 
 size_t array_size(const array_t *self) {
@@ -400,6 +393,25 @@ size_t array_cap(const array_t *self) {
 
   return (self->_cap);
 }
+
+void array_settle(array_t *self) {
+  __ret_if_fail__(self);
+  
+  self->settled = true;
+}
+
+void array_unsettle(array_t *self) {
+  __ret_if_fail__(self);
+  
+  self->settled = false;
+}
+
+bool array_is_settled(array_t *self) {
+  __retval_if_fail__(self, false);
+  
+  return (self->settled);
+}
+
 
 void array_stats(const array_t *self) {
   __ret_if_fail__(self);

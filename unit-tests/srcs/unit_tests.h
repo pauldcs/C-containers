@@ -21,6 +21,9 @@ extern t_xre_specs_state  __xre_specs__;
 # define BWHT "\033[1;37m"
 # define CRESET "\033[0m"
 
+#define BYEL "\033[1;33m"
+#define BRED "\033[1;31m"
+
 #define __test_start__ \
 	fprintf (stderr, "Launching %s\nFunction: %s%s%s\n", \
 		__FILE__, BWHT, __PRETTY_FUNCTION__, CRESET); \
