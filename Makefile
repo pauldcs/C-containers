@@ -25,7 +25,7 @@ $(NAME): $(SRCS_OBJS)
 		-dynamiclib \
 		-o $(NAME) 
 
-specs: all
+specs: g
 	$(CC) \
 		unit-tests/main.c \
 		unit-tests/srcs/unit_tests.c \

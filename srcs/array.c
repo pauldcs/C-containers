@@ -44,6 +44,10 @@ array_t *array_create(size_t elt_size, size_t n, void (*free)(void *)) {
   array->_stats.n_allocs = 1;
   array->_stats.n_bytes_allocd = initial_cap;
   array->_stats.n_bytes_reachable = initial_cap;
+  array->_stats.history[array->_stats.hindex].alloc_size = initial_cap;
+  array->_stats.history[array->_stats.hindex].pointer = array->_ptr;
+  (array->_stats.hindex)++;
+  (array->_stats.hindex) %= STATS_HISTORY_SIZE;
 #endif
   return (array);
 }
@@ -105,25 +109,18 @@ array_t *array_pull(const array_t *src, st64_t sp, st64_t ep) {
     }
   }
 
-#if defined(ENABLE_STATISTICS)
-  arr->_stats.n_allocs = 1;
-  arr->_stats.n_bytes_allocd = size;
-  arr->_stats.n_bytes_reachable = size;
-  arr->_stats.n_bytes_in_use = size;
-#endif
   return (arr);
 }
 
-void array_purge(array_t *self) {
+void array_clear(array_t *self) {
   RETURN_IF_FAIL(self);
 
   if (self->_free) {
     while (self->_nmemb--)
       self->_free(GET_POINTER(self, self->_nmemb));
-
-  } else {
-    self->_nmemb = 0;
   }
+  self->_nmemb = 0;
+
 #if defined(ENABLE_STATISTICS)
   self->_stats.n_bytes_in_use = 0;
 #endif
@@ -132,10 +129,7 @@ void array_purge(array_t *self) {
 void array_kill(array_t *self) {
   RETURN_IF_FAIL(self);
 
-  array_purge(self);
-  if (self->_cap)
-    __array_allocator__._memory_free(self->_ptr);
-
+  array_clear(self);
   __array_allocator__._memory_free(self);
 }
 
@@ -181,6 +175,10 @@ bool array_adjust(array_t *self, size_t n) {
   self->_stats.n_allocs++;
   self->_stats.n_bytes_allocd += size;
   self->_stats.n_bytes_reachable = size;
+  self->_stats.history[self->_stats.hindex].alloc_size = size;
+  self->_stats.history[self->_stats.hindex].pointer = self->_ptr;
+  (self->_stats.hindex)++;
+  (self->_stats.hindex) %= STATS_HISTORY_SIZE;
 #endif
   return (true);
 }
@@ -362,16 +360,6 @@ void array_wipe(array_t *self, size_t sp, size_t ep) {
 #endif
 }
 
-void array_clear(array_t *self) {
-  RETURN_IF_FAIL(self);
-
-  self->_nmemb = 0;
-
-#if defined(ENABLE_STATISTICS)
-  self->_stats.n_bytes_in_use = 0;
-#endif
-}
-
 void array_swap(array_t *self, size_t a, size_t b) {
   RETURN_IF_FAIL(self);
   RETURN_IF_FAIL(a < self->_nmemb);
@@ -423,11 +411,16 @@ bool array_slimcheck(array_t *self) {
 
       self->_ptr = ptr;
       self->_cap = required;
+
 #if defined(ENABLE_STATISTICS)
       self->_stats.n_frees++;
       self->_stats.n_allocs++;
       self->_stats.n_bytes_allocd += required;
       self->_stats.n_bytes_reachable = required;
+      self->_stats.history[self->_stats.hindex].alloc_size = required;
+      self->_stats.history[self->_stats.hindex].pointer = self->_ptr;
+      (self->_stats.hindex)++;
+      (self->_stats.hindex) %= STATS_HISTORY_SIZE;
 #endif
     }
   }
@@ -452,13 +445,28 @@ bool array_is_settled(const array_t *self) {
   return (self->settled);
 }
 
+#if defined(ENABLE_STATISTICS)
 void array_stats(const array_t *self) {
   RETURN_IF_FAIL(self);
 
-  (void)fprintf(stderr, "ARRAY MEMORY STATISTICS:\n");
+  size_t i = 0;
+  size_t hindex = self->_stats.hindex;
+  (void)fprintf(stderr, "ALLOC HISTORY:\n");
+  while (i < 10) {
+    if (i + 1 == hindex)
+      (void)fprintf(stderr, " @ ");
+    else
+      (void)fprintf(stderr, "   ");
+
+    (void)fprintf(stderr, "(%16p): %8ld\n", self->_stats.history[i].pointer,
+                  self->_stats.history[i].alloc_size);
+    i++;
+  }
+  (void)fprintf(stderr, "\nSTATISTICS:\n");
   (void)fprintf(stderr, "  allocations: %ld bytes in %ld blocks (%ld freed)\n",
                 self->_stats.n_bytes_allocd, self->_stats.n_allocs,
                 self->_stats.n_frees);
   (void)fprintf(stderr, "       in use: %ld bytes out of %ld reserved\n",
                 self->_stats.n_bytes_in_use, self->_stats.n_bytes_reachable);
 }
+#endif /* ENABLE_STATISTICS */

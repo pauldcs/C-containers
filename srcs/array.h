@@ -7,6 +7,7 @@
 #include <stdio.h>
 
 #define ARRAY_INITIAL_SIZE 256
+#define STATS_HISTORY_SIZE 10
 
 #define GET_POINTER(v, pos) ((char *)(v)->_ptr + (v)->_elt_size * (pos))
 
@@ -26,7 +27,7 @@ typedef struct {
   void (*_free)(void *); /* element free function */
   bool settled;
 
-#define ENABLE_STATISTICS
+#define ENABLE_STATISTICS // currently defined by default
 #if defined(ENABLE_STATISTICS)
   struct {
     size_t n_allocs;          /* allocation counter */
@@ -34,9 +35,14 @@ typedef struct {
     size_t n_bytes_allocd;    /* total number of bytes allocated */
     size_t n_bytes_reachable; /* total number of bytes not deallocated yet */
     size_t n_bytes_in_use;    /* total number of actively used bytes */
+    struct {
+      void *pointer;     /* the pointer */
+      size_t alloc_size; /* the size of the allocation */
+    } history[STATS_HISTORY_SIZE];
+    size_t hindex;
   } _stats;
 #else
-#endif
+#endif /* ENABLE_STATISTICS */
 } array_t;
 
 #define SELF array_t *
@@ -77,14 +83,14 @@ size_t array_size(SELF_RDONLY);
  */
 size_t array_cap(SELF_RDONLY);
 
-/* Extracts and returns the data contained in 'self' in between sp -> ep into
- * a newly allocated buffer.
+/* Returns the data contained in 'self' in between sp -> ep into a newly
+ * allocated buffer.
  */
 void *array_extract(SELF_RDONLY, size_t sp, size_t ep);
 
 /* Extract and returns the data from 'self' in between sp -> ep (included) into
  * a newly allocated array. If a position is negative, it is iterpreted as an
- * offset from the end.
+ * offset from the end. If 'sp' comes after 'ep', the copy is made backwards.
  *
  *   Example:
  *     let [a, b, c] be the array.
@@ -96,10 +102,6 @@ void *array_extract(SELF_RDONLY, size_t sp, size_t ep);
  *     array_pull(v, -2, -1) = [b, c].
  */
 array_t *array_pull(SELF_RDONLY, st64_t sp, st64_t ep);
-
-/* Frees all the elements in the array, leaving it empty.
- */
-void array_purge(SELF);
 
 /* Frees the the array, purging the content beforhand.
  */
@@ -168,7 +170,7 @@ void array_swap(SELF, size_t a, size_t b);
  */
 void array_wipe(SELF, size_t sp, size_t ep);
 
-/* Sets the array size to 0
+/* Removes all the elements from the array.
  */
 void array_clear(SELF);
 
@@ -190,9 +192,11 @@ void *array_head(SELF_RDONLY);
  */
 void *array_tail(SELF_RDONLY);
 
+#if defined(ENABLE_STATISTICS)
 /* Dump the stats of the array. The stats are traced only when
  * ENABLE_STATISTICS is defined
  */
 void array_stats(SELF_RDONLY);
+#endif /* ENABLE_STATISTICS */
 
 #endif /* __array_H__*/
