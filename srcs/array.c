@@ -143,12 +143,8 @@ bool array_adjust(array_t *self, size_t n) {
   RETURN_VAL_IF_FAIL(self, 0);
   RETURN_VAL_IF_FAIL(SIZE_MAX - self->_nmemb > n, 0);
   RETURN_VAL_IF_FAIL(SIZE_MAX / self->_elt_size > n, 0);
-  RETURN_VAL_IF_FAIL(!SETTLED(self), 0);
 
   size_t size;
-
-  if (unlikely(SETTLED(self)))
-    return (false);
 
   n += self->_nmemb;
   n *= self->_elt_size;
@@ -156,20 +152,23 @@ bool array_adjust(array_t *self, size_t n) {
   if (n < self->_cap)
     return (true);
 
-  size_t cap_2x = self->_cap * 2;
-  if (cap_2x > SIZE_MAX)
+  if (unlikely(SETTLED(self)))
     return (false);
-  
+
+  size_t cap_2x = self->_cap * 2;
+  if (cap_2x < 16) {
+    cap_2x = 16;
+  } else {
+    if (cap_2x > SIZE_MAX)
+      return (false);
+  }
+
   if (n > cap_2x) {
     size = n;
   } else {
-    if (cap_2x < 16) {
-      size = 16;
-    } else {
-      size = cap_2x;
-    }
+    size = cap_2x;
   }
-  
+
   void *ptr = __array_allocator__._memory_realloc(self->_ptr, size);
   if (unlikely(!ptr))
     return (false);
@@ -412,6 +411,9 @@ size_t array_cap(const array_t *self) {
 bool array_slimcheck(array_t *self) {
   RETURN_VAL_IF_FAIL(self, false);
 
+  if (unlikely(SETTLED(self)))
+    return (false);
+
   if (self->_cap) {
     size_t required = self->_elt_size * self->_nmemb;
     if (required < self->_cap / 2) {
@@ -432,15 +434,10 @@ bool array_slimcheck(array_t *self) {
   return (true);
 }
 
-bool array_settle(array_t *self) {
-  RETURN_VAL_IF_FAIL(self, false);
+void array_settle(array_t *self) {
+  RETURN_IF_FAIL(self);
 
-  if (array_slimcheck(self)) {
-    self->settled = true;
-    return (true);
-  }
-
-  return (false);
+  self->settled = true;
 }
 
 void array_unsettle(array_t *self) {
