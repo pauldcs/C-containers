@@ -424,7 +424,7 @@ void array_stats(const array_t *self) {
 
   (void)fprintf(stderr, "ARRAY MEMORY STATISTICS:\n");
   (void)fprintf(
-      stderr, "  allocations: %ld bytes in %ld blocks (%ld blocks freed)\n",
+      stderr, "  allocations: %ld bytes in %ld blocks (%ld freed)\n",
       self->_stats.n_bytes_allocd, self->_stats.n_allocs, self->_stats.n_frees);
   (void)fprintf(stderr, "       in use: %ld bytes out of %ld reserved\n",
                 self->_stats.n_bytes_in_use, self->_stats.n_bytes_reachable);

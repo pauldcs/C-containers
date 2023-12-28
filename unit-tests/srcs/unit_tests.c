@@ -16,7 +16,7 @@
 # define BRED "\033[1;31m"
 # define YEL "\033[0;33m"
 
-t_xre_specs_state  __xre_specs__ = {
+specs_state_t  __specs__ = {
 	.passed  = 0,
 	.failed  = 0,
 };
@@ -70,12 +70,12 @@ bool run_test(bool (* test)(void), const char *title)
 		goto test_ko;
 	}
 
-	__xre_specs__.passed++;
+	__specs__.passed++;
 	fprintf(stderr, "(%f ms) " BGRN "OK %s\n", execution_time_ms, CRESET);
 	return (true);
 
 test_ko:
-	__xre_specs__.failed++;
+	__specs__.failed++;
 	fprintf(stderr, "(%f ms) " BRED "KO %s\n", execution_time_ms, CRESET);
 	return (false);
 }

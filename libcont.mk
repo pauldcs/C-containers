@@ -3,7 +3,7 @@ CC            := gcc
 SRCS_DIR      := srcs
 OBJS_DIR      := .objs
 BUILD_DIR     := build
-INCS_DIR      := incs
+INCS_DIR      := srcs
 
 CFLAGS   := \
 	-Wall     \

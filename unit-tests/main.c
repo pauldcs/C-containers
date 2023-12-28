@@ -8,7 +8,7 @@ int main(void) {
           "   tests passed: %zu\n"
           "          total: %zu\n"
           "\n",
-          __xre_specs__.failed, __xre_specs__.passed,
-          __xre_specs__.failed + __xre_specs__.passed);
+          __specs__.failed, __specs__.passed,
+          __specs__.failed + __specs__.passed);
   return (0);
 }

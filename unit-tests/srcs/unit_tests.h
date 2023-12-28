@@ -8,11 +8,11 @@
 typedef struct {
 	size_t  passed;
 	size_t  failed;
-}	t_xre_specs_state;
+}	specs_state_t;
 
 # define TIMEOUT_LIMIT 5 /* seconds */
 
-extern t_xre_specs_state  __xre_specs__;
+extern specs_state_t  __specs__;
 
 # define TEST_OK 1
 # define TEST_KO 0

@@ -1,4 +1,5 @@
 include libcont.mk
+include specs.mk
 
 SRCS_OBJS := $(patsubst %.c,$(OBJS_DIR)/%.o,$(SRCS))
 
@@ -26,18 +27,17 @@ $(NAME): $(SRCS_OBJS)
 
 specs: all
 	$(CC) \
+		unit-tests/main.c \
+		unit-tests/srcs/unit_tests.c \
+		-I unit-tests/srcs \
 		$(CFLAGS) \
 		$(CFLAGS_DBG) \
-		unit-tests/tests/array_basic.c \
-		unit-tests/tests/array_usage.c \
-		unit-tests/tests/dynstr_basic.c \
-		unit-tests/srcs/unit_tests.c \
-		unit-tests/srcs/main.c \
-		-I srcs \
-		-I unit-tests/srcs \
-		-o prog \
+		$(TEST_MAIN) \
+		$(SPECS_SRCS) \
+		-I $(INCS_DIR) \
+		-o tester \
 		-L. \
-		libcont.dylib \
+		$(NAME) \
 
 
 g: CFLAGS += $(CFLAGS_DBG)
@@ -50,7 +50,8 @@ clean:
 fclean: clean
 	rm -rf $(NAME)
 	rm -rf prog
+	rm -rf tester
 
 re: fclean all
 
-.PHONY	: all clean g spec fclean re 
+.PHONY	: all clean g specs fclean re 
