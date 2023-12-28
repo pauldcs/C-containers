@@ -48,7 +48,17 @@ typedef struct {
  */
 array_t *array_create(size_t elt_size, size_t n, void (*_free)(void *));
 
-void array_settle(array_t *self);
+/* Reallocates the array if more than half of the current capacity is unused.
+ */
+bool array_slimcheck(array_t *self);
+
+/* Marks the array as settled to make it unable to reserve additional
+ * memory. Should be called once the array is known to have gotten to
+ * it's final size.
+ */
+bool array_settle(array_t *self);
+
+/* m */
 void array_unsettle(array_t *self);
 bool array_is_settled(array_t *self);
 

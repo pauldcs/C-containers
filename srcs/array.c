@@ -156,12 +156,20 @@ bool array_adjust(array_t *self, size_t n) {
   if (n < self->_cap)
     return (true);
 
-  if (n < self->_cap * 2) {
-    size = self->_cap * 2;
-  } else {
+  size_t cap_2x = self->_cap * 2;
+  if (cap_2x > SIZE_MAX)
+    return (false);
+  
+  if (n > cap_2x) {
     size = n;
+  } else {
+    if (cap_2x < 16) {
+      size = 16;
+    } else {
+      size = cap_2x;
+    }
   }
-
+  
   void *ptr = __array_allocator__._memory_realloc(self->_ptr, size);
   if (unlikely(!ptr))
     return (false);
@@ -401,10 +409,38 @@ size_t array_cap(const array_t *self) {
   return (self->_cap);
 }
 
-void array_settle(array_t *self) {
-  RETURN_IF_FAIL(self);
+bool array_slimcheck(array_t *self) {
+  RETURN_VAL_IF_FAIL(self, false);
 
-  self->settled = true;
+  if (self->_cap) {
+    size_t required = self->_elt_size * self->_nmemb;
+    if (required < self->_cap / 2) {
+      void *ptr = __array_allocator__._memory_realloc(self->_ptr, required);
+      if (unlikely(!ptr))
+        return (false);
+
+      self->_ptr = ptr;
+      self->_cap = required;
+#if defined(ENABLE_STATISTICS)
+      self->_stats.n_frees++;
+      self->_stats.n_allocs++;
+      self->_stats.n_bytes_allocd += required;
+      self->_stats.n_bytes_reachable = required;
+#endif
+    }
+  }
+  return (true);
+}
+
+bool array_settle(array_t *self) {
+  RETURN_VAL_IF_FAIL(self, false);
+
+  if (array_slimcheck(self)) {
+    self->settled = true;
+    return (true);
+  }
+
+  return (false);
 }
 
 void array_unsettle(array_t *self) {
@@ -423,9 +459,9 @@ void array_stats(const array_t *self) {
   RETURN_IF_FAIL(self);
 
   (void)fprintf(stderr, "ARRAY MEMORY STATISTICS:\n");
-  (void)fprintf(
-      stderr, "  allocations: %ld bytes in %ld blocks (%ld freed)\n",
-      self->_stats.n_bytes_allocd, self->_stats.n_allocs, self->_stats.n_frees);
+  (void)fprintf(stderr, "  allocations: %ld bytes in %ld blocks (%ld freed)\n",
+                self->_stats.n_bytes_allocd, self->_stats.n_allocs,
+                self->_stats.n_frees);
   (void)fprintf(stderr, "       in use: %ld bytes out of %ld reserved\n",
                 self->_stats.n_bytes_in_use, self->_stats.n_bytes_reachable);
 }
