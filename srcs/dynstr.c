@@ -1,6 +1,5 @@
 
 #include "dynstr.h"
-#include "array.h"
 #include "internal.h"
 #include <limits.h>
 #include <stdbool.h>
@@ -58,6 +57,6 @@ void dynstr_wipe(dynstr_t *self, size_t start, size_t end) {
 
 void dynstr_done(dynstr_t *self) { array_settle((array_t *)self); }
 
-array_t *dynstr_pull(const dynstr_t *self, st64_t sp, st64_t ep);
+dynstr_t *dynstr_pull(const dynstr_t *self, st64_t sp, st64_t ep);
 void dynstr_clear(dynstr_t *self);
-size_t dynstr_cap(dynstr_t *self) __readonly;
+size_t dynstr_cap(const dynstr_t *self);

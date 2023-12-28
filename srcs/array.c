@@ -446,7 +446,7 @@ void array_unsettle(array_t *self) {
   self->settled = false;
 }
 
-bool array_is_settled(array_t *self) {
+bool array_is_settled(const array_t *self) {
   RETURN_VAL_IF_FAIL(self, false);
 
   return (self->settled);
