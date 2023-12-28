@@ -6,7 +6,9 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#define INDEX_TO_PTR(v, pos) ((char *)(v)->_ptr + (v)->_elt_size * (pos))
+#define ARRAY_INITIAL_SIZE 256
+
+#define GET_POINTER(v, pos) ((char *)(v)->_ptr + (v)->_elt_size * (pos))
 
 typedef struct {
   void *(*_memory_alloc)(size_t);
