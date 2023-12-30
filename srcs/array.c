@@ -411,7 +411,11 @@ void *array_uninitialized_data(const array_t *self) {
 size_t array_uninitialized_size(const array_t *self) {
   RETURN_VAL_IF_FAIL(self, 0);
 
-  return (self->_cap - self->_nmemb * self->_elt_size);
+  size_t size_in_bytes = self->_cap - self->_nmemb * self->_elt_size;
+  if (size_in_bytes) {
+    size_in_bytes /= self->_elt_size;
+  }
+  return (size_in_bytes);
 }
 
 size_t array_cap(const array_t *self) {
@@ -423,9 +427,9 @@ size_t array_cap(const array_t *self) {
 bool array_append_from_capacity(array_t *self, size_t n) {
   RETURN_VAL_IF_FAIL(self, false);
 
-  if ((self->_nmemb + n) * self->_elt_size > self->_cap) {
+  if (n > array_uninitialized_size(self))
     return (false);
-  }
+
   self->_nmemb += n;
 
 #if defined(ENABLE_STATISTICS)
