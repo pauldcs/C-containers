@@ -12,16 +12,15 @@ typedef struct {
   size_t _cap;   /* allocated memory (in bytes) */
 } dynstr_t;
 
-#ifdef SELF 
+#ifdef SELF
 #undef SELF
 #define SELF dynstr_t *
-#endif 
+#endif
 
-#ifdef SELF_RDONLY 
+#ifdef SELF_RDONLY
 #undef SELF_RDONLY
 #define SELF_RDONLY const dynstr_t *
-#endif 
-
+#endif
 
 /* Creates a new empty dynamic string and adjusts its starting capacity
  * to be at least enough to hold 'n' + 1 characters.

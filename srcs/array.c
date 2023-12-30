@@ -2,6 +2,7 @@
 #include "internal.h"
 #include <limits.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -24,7 +25,7 @@ static inline bool array_init(array_t **self, size_t size) {
 }
 
 array_t *array_create(size_t elt_size, size_t n, void (*free)(void *)) {
-  RETURN_VAL_IF_FAIL(SIZE_MAX / elt_size > n, 0);
+  RETURN_VAL_IF_FAIL(SIZE_MAX / elt_size > n, NULL);
 
   if (!n) {
     n = ARRAY_INITIAL_SIZE;
@@ -53,25 +54,23 @@ array_t *array_create(size_t elt_size, size_t n, void (*free)(void *)) {
 }
 
 void *array_extract(const array_t *src, size_t sp, size_t ep) {
-  RETURN_VAL_IF_FAIL(src, 0);
-  RETURN_VAL_IF_FAIL(sp < ep, 0);
-  RETURN_VAL_IF_FAIL(sp <= LONG_MAX, 0);
-  RETURN_VAL_IF_FAIL(ep <= LONG_MAX, 0);
-  RETURN_VAL_IF_FAIL(SIZE_MAX > (ep - sp) * src->_elt_size - 1, 0);
-  RETURN_VAL_IF_FAIL(
-      src->_elt_size * src->_nmemb >= (ep - sp) * src->_elt_size - 1, 0);
+  RETURN_VAL_IF_FAIL(src, NULL);
+  RETURN_VAL_IF_FAIL(sp < ep, NULL);
+  RETURN_VAL_IF_FAIL((ep - sp) < SIZE_MAX, NULL);
+  RETURN_VAL_IF_FAIL(src->_elt_size * src->_nmemb > (ep - sp) * src->_elt_size,
+                     NULL);
 
   void *ptr = __array_allocator__._memory_alloc((ep - sp) * src->_elt_size);
   if (likely(ptr))
-    (void)builtin_memcpy(ptr, GET_POINTER(src, sp), ep - sp);
+    (void)builtin_memcpy(ptr, GET_POINTER(src, sp), (ep - sp) * src->_elt_size);
 
   return (ptr);
 }
 
 array_t *array_pull(const array_t *src, st64_t sp, st64_t ep) {
-  RETURN_VAL_IF_FAIL(src, 0);
-  RETURN_VAL_IF_FAIL((sp >= LONG_MIN && sp <= LONG_MAX), 0);
-  RETURN_VAL_IF_FAIL((ep >= LONG_MIN && ep <= LONG_MAX), 0);
+  RETURN_VAL_IF_FAIL(src, NULL);
+  RETURN_VAL_IF_FAIL((sp >= LONG_MIN && sp <= LONG_MAX), NULL);
+  RETURN_VAL_IF_FAIL((ep >= LONG_MIN && ep <= LONG_MAX), NULL);
 
   if (sp < 0)
     sp += src->_nmemb;
@@ -134,9 +133,9 @@ void array_kill(array_t *self) {
 }
 
 bool array_adjust(array_t *self, size_t n) {
-  RETURN_VAL_IF_FAIL(self, 0);
-  RETURN_VAL_IF_FAIL(SIZE_MAX - self->_nmemb > n, 0);
-  RETURN_VAL_IF_FAIL(SIZE_MAX / self->_elt_size > n, 0);
+  RETURN_VAL_IF_FAIL(self, false);
+  RETURN_VAL_IF_FAIL(SIZE_MAX - self->_nmemb > n, false);
+  RETURN_VAL_IF_FAIL(SIZE_MAX / self->_elt_size > n, false);
 
   size_t size;
 
@@ -184,7 +183,7 @@ bool array_adjust(array_t *self, size_t n) {
 }
 
 bool array_push(array_t *self, void *elem) {
-  RETURN_VAL_IF_FAIL(self, 0);
+  RETURN_VAL_IF_FAIL(self, false);
 
   if (unlikely(!array_adjust(self, 1)))
     return (false);
@@ -227,8 +226,8 @@ void array_popf(array_t *self, void *into) {
 }
 
 bool array_insert(array_t *self, size_t p, void *node) {
-  RETURN_VAL_IF_FAIL(self, 0);
-  RETURN_VAL_IF_FAIL(p <= self->_nmemb, 0);
+  RETURN_VAL_IF_FAIL(self, false);
+  RETURN_VAL_IF_FAIL(p <= self->_nmemb, false);
 
   if (unlikely(!array_adjust(self, 1)))
     return (false);
@@ -249,9 +248,17 @@ skip:
   return (true);
 }
 
+void array_copy(array_t *self, ptrdiff_t off, const void *src, size_t n) {
+  RETURN_IF_FAIL(self);
+  RETURN_IF_FAIL(src);
+  RETURN_IF_FAIL((size_t)off + n <= self->_cap);
+
+  (void)builtin_memmove((char *)self->_ptr + off, src, n);
+}
+
 bool array_inject(array_t *self, size_t p, const void *src, size_t n) {
-  RETURN_VAL_IF_FAIL(self, 0);
-  RETURN_VAL_IF_FAIL(p <= self->_nmemb, 0);
+  RETURN_VAL_IF_FAIL(self, false);
+  RETURN_VAL_IF_FAIL(p <= self->_nmemb, false);
 
   if (unlikely(!array_adjust(self, n)))
     return (false);
@@ -273,8 +280,8 @@ skip:
 }
 
 bool array_append(array_t *self, const void *src, size_t n) {
-  RETURN_VAL_IF_FAIL(self, 0);
-  RETURN_VAL_IF_FAIL(src, 0);
+  RETURN_VAL_IF_FAIL(self, false);
+  RETURN_VAL_IF_FAIL(src, false);
 
   if (unlikely(!array_adjust(self, n)))
     return (false);
@@ -291,10 +298,10 @@ bool array_append(array_t *self, const void *src, size_t n) {
 }
 
 const void *array_at(const array_t *self, size_t pos) {
-  RETURN_VAL_IF_FAIL(self, 0);
-  RETURN_VAL_IF_FAIL(self->_nmemb >= pos, 0);
+  RETURN_VAL_IF_FAIL(self, NULL);
+  RETURN_VAL_IF_FAIL(self->_nmemb >= pos, NULL);
 
-  if (unlikely(pos >= self->_nmemb || 0 > pos))
+  if (unlikely(pos >= self->_nmemb))
     return (NULL);
 
   return (GET_POINTER(self, pos));
@@ -305,10 +312,10 @@ const void *array_unsafe_at(const array_t *self, size_t pos) {
 }
 
 void *array_access(const array_t *self, size_t pos) {
-  RETURN_VAL_IF_FAIL(self, 0);
-  RETURN_VAL_IF_FAIL(self->_nmemb >= pos, 0);
+  RETURN_VAL_IF_FAIL(self, NULL);
+  RETURN_VAL_IF_FAIL(self->_nmemb >= pos, NULL);
 
-  if (unlikely(pos >= self->_nmemb || 0 > pos))
+  if (unlikely(pos >= self->_nmemb))
     return (NULL);
 
   return (GET_POINTER(self, pos));
@@ -381,19 +388,50 @@ void *array_head(const array_t *self) { return (array_access(self, 0)); }
 void *array_tail(const array_t *self) {
   RETURN_VAL_IF_FAIL(self, NULL);
 
-  return (array_access(self, self->_nmemb));
+  if (!self->_nmemb)
+    return (NULL);
+
+  return (array_access(self, self->_nmemb - 1));
 }
 
 size_t array_size(const array_t *self) {
-  RETURN_VAL_IF_FAIL(self, -1);
+  RETURN_VAL_IF_FAIL(self, 0);
 
   return (self->_nmemb);
 }
 
+void *array_data(const array_t *self) { return array_head(self); }
+
+void *array_uninitialized_data(const array_t *self) {
+  RETURN_VAL_IF_FAIL(self, NULL);
+
+  return (array_unsafe_access(self, self->_nmemb));
+}
+
+size_t array_uninitialized_size(const array_t *self) {
+  RETURN_VAL_IF_FAIL(self, 0);
+
+  return (self->_cap - self->_nmemb * self->_elt_size);
+}
+
 size_t array_cap(const array_t *self) {
-  RETURN_VAL_IF_FAIL(self, -1);
+  RETURN_VAL_IF_FAIL(self, 0);
 
   return (self->_cap);
+}
+
+bool array_append_from_capacity(array_t *self, size_t n) {
+  RETURN_VAL_IF_FAIL(self, false);
+
+  if ((self->_nmemb + n) * self->_elt_size > self->_cap) {
+    return (false);
+  }
+  self->_nmemb += n;
+
+#if defined(ENABLE_STATISTICS)
+  self->_stats.n_bytes_in_use += n;
+#endif
+  return (true);
 }
 
 bool array_slimcheck(array_t *self) {

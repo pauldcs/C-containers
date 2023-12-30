@@ -83,6 +83,19 @@ size_t array_size(SELF_RDONLY);
  */
 size_t array_cap(SELF_RDONLY);
 
+/* Pointer to the underlying element storage. For non-empty containers,
+ * the returned pointer compares equal to the address of the first element.
+ */
+void *array_data(SELF_RDONLY);
+
+/* Pointer to the first uninitialized element in the allocated buffer.
+ */
+void *array_uninitialized_data(SELF_RDONLY);
+
+/* Returns the number of elements that would fit in the left capacity.
+ */
+size_t array_uninitialized_size(SELF_RDONLY);
+
 /* Returns the data contained in 'self' in between sp -> ep into a newly
  * allocated buffer.
  */
@@ -132,7 +145,7 @@ void array_popf(SELF, void *into);
 /* Copies 'n' bytes of data pointed to by 'src' directly into the array's buffer
  * at the specified offset (in bytes).
  */
-bool array_copy(SELF, off_t off, const void *src, size_t n); //--------- TODO
+void array_copy(SELF, ptrdiff_t off, const void *src, size_t n);
 
 /* The array is extended by injecting a new element before the
  * element at the specified position, effectively increasing
@@ -158,6 +171,11 @@ void *array_unsafe_access(SELF_RDONLY, size_t p);
  */
 const void *array_at(SELF_RDONLY, size_t p);
 const void *array_unsafe_at(SELF_RDONLY, size_t pos);
+
+/* Appends n elements from capacity. The application must have initialized
+ * the storage backing these elements otherwise the behavior is undefined. 
+ */
+bool array_append_from_capacity(SELF, size_t n);
 
 /* The element at position 'a' and the element at position 'b'
  * are swapped.
