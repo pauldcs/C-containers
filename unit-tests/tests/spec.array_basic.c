@@ -17,8 +17,8 @@ static bool __test_001__(void) {
 	assert(array_insert(v, 3, __PTRIZE_STR__("444")));
 	assert(array_insert(v, 6, __PTRIZE_STR__("777")));
 	assert(array_insert(v, 0, __PTRIZE_STR__("000")));
-	array_swap(v, 0, 7);
-	array_swap(v, 1, 6);
+	array_swap_elems(v, 0, 7);
+	array_swap_elems(v, 1, 6);
 	assert(!strcmp(*(char**)array_at(v, 0), "777"));
 	assert(!strcmp(*(char**)array_at(v, 1), "666"));
 	assert(!strcmp(*(char**)array_at(v, 2), "222"));
@@ -44,8 +44,8 @@ static bool __test_002__(void) {
 	array_evict(v, 2);
 	assert(array_insert(v, 2, __PTRIZE_ST32__(777)));
 	array_evict(v, 1);
-	array_swap(v, 0, 2);
-	array_swap(v, 1, 2);
+	array_swap_elems(v, 0, 2);
+	array_swap_elems(v, 1, 2);
 	assert(*(int32_t *)array_at(v, 0) == 444);
 	assert(*(int32_t *)array_at(v, 1) == 111);
 	assert(*(int32_t *)array_at(v, 2) == 777);

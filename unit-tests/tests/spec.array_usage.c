@@ -12,7 +12,7 @@ static void bubble_sort(array_t *array) {
     size_t i = 0;
     while (i + 1 < size) {
       if (*(int *)array_at(array, i) > *(int *)array_at(array, i + 1)) {
-        array_swap(array, i, i + 1);
+        array_swap_elems(array, i, i + 1);
         sorted = false;
       }
       i++;

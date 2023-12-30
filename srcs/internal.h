@@ -108,11 +108,21 @@ typedef struct {
 #define RETURN_IF_FAIL(expr)
 #define RETURN_VAL_IF_FAIL(expr, val)
 #else
+#define LOG_ERRORS_STDERR // enabled by default
+#if defined(LOG_ERRORS_STDERR)
+#define LOG_ERROR_MSG(expr)                                                    \
+  do {                                                                         \
+    (void)fprintf(stderr, "error: HARDENED_RUNTIME file '%s', line: %d: (%s)\n",     \
+                  __FILE__, __LINE__, #expr);                                  \
+  } while (0)
+#else
+#define LOG_ERROR_MSG(expr)
+#endif /* defined(LOG_ERRORS_STDERR) */
+
 #define RETURN_IF_FAIL(expr)                                                   \
   do {                                                                         \
     if (!(expr)) {                                                             \
-      (void)fprintf(stderr, "file '%s', line: %d\nHARDENED_RUNTIME: (%s)\n",   \
-                    __FILE__, __LINE__, #expr);                                \
+      LOG_ERROR_MSG(expr);                                                     \
       return;                                                                  \
     };                                                                         \
   } while (0)
@@ -120,12 +130,11 @@ typedef struct {
 #define RETURN_VAL_IF_FAIL(expr, val)                                          \
   do {                                                                         \
     if (!(expr)) {                                                             \
-      (void)fprintf(stderr, "file '%s', line: %d\nHARDENED_RUNTIME: (%s)\n",   \
-                    __FILE__, __LINE__, #expr);                                \
+      LOG_ERROR_MSG(expr);                                                     \
       return val;                                                              \
     };                                                                         \
   } while (0)
-#endif /* defined (DISABLE_ASSERTIONS) */
+#endif /* defined (DISABLE_HARDENED_RUNTIME) */
 
 #define SAFE_TO_ADD(a, b, max) (a <= max - b)
 #define SAFE_TO_MUL(a, b, max) (b == 0 || a <= max / b)
@@ -134,5 +143,9 @@ typedef struct {
 #define SIZE_T_SAFE_TO_MUL(a, b) SAFE_TO_MUL(a, b, SIZE_MAX)
 #define SIZE_T_SAFE_TO_ADD(a, b) SAFE_TO_ADD(a, b, SIZE_MAX)
 #define SIZE_T_SAFE_TO_SUB(a, b) SAFE_TO_SUB(a, b, 0)
+
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#define ABS(a) ((size_t)(((a) < 0) ? -(a) : (a)))
 
 #endif /* __INTERNAL_H__ */

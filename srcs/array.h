@@ -6,7 +6,7 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#define ARRAY_INITIAL_SIZE 256
+#define ARRAY_INITIAL_SIZE 128
 #define STATS_HISTORY_SIZE 10
 
 #define GET_POINTER(v, pos) ((char *)(v)->_ptr + (v)->_elt_size * (pos))
@@ -45,61 +45,69 @@ typedef struct {
 #endif /* ENABLE_STATISTICS */
 } array_t;
 
-#define SELF array_t *
-#define SELF_RDONLY const array_t *
+/* DEFINED TYPES */
+#define ARRAY_T(__x) array_t *__x
+#define BOOL_T(__x) bool __x
+#define RDONLY_ARRAY_T(__array) const array_t *__array
+#define SIZE_T(__n) size_t __n
+#define INT_T(__n) int64_t __n
+#define INDEX_T(__i) size_t __i
+#define PTR_T(__p) void *__p
+#define RDONLY_PTR_T(__p) const void *__p
+#define NONE_T(__x) void __x
 
 #define SETTLED(array) array->settled
 
 /* Creates an array and adjusts its starting capacity to be at least
  * enough to hold 'n' elements.
  */
-array_t *array_create(size_t elt_size, size_t n, void (*_free)(void *));
+ARRAY_T(array_create)(SIZE_T(elt_size), SIZE_T(n), void (*_free)(void *));
 
 /* Reallocates the array if more than half of the current capacity is unused.
  * If the reallocation fails the array remains untouched and the function
  * returns false.
  */
-bool array_slimcheck(SELF);
+BOOL_T(array_slimcheck)(ARRAY_T(self));
 
 /* Marks the array as settled which makes it unable to reserve additional
  * memory. Should be called once the array is known to have gotten to
  * it's final size.
  */
-void array_settle(SELF);
+NONE_T(array_settle)(ARRAY_T(self));
 
 /* Cancels 'array_settle()'.
  */
-void array_unsettle(SELF);
+NONE_T(array_unsettle)(ARRAY_T(self));
 
 /* Returns true if 'self' is marked as settled.
  */
-bool array_is_settled(SELF_RDONLY);
+BOOL_T(array_is_settled)(RDONLY_ARRAY_T(self));
 
 /* Returns the number of elements contained in the array.
  */
-size_t array_size(SELF_RDONLY);
+SIZE_T(array_size)(RDONLY_ARRAY_T(self));
 
 /* Returns the number of bytes currently reserved by the array.
  */
-size_t array_cap(SELF_RDONLY);
+SIZE_T(array_cap)(RDONLY_ARRAY_T(self));
 
 /* Pointer to the underlying element storage. For non-empty containers,
  * the returned pointer compares equal to the address of the first element.
  */
-void *array_data(SELF_RDONLY);
+PTR_T(array_data)(RDONLY_ARRAY_T(self));
 
 /* Pointer to the first uninitialized element in the allocated buffer.
  */
-void *array_uninitialized_data(SELF_RDONLY);
+PTR_T(array_uninitialized_data)(RDONLY_ARRAY_T(self));
 
 /* Returns the number of elements that would fit in the left capacity.
  */
-size_t array_uninitialized_size(SELF_RDONLY);
+SIZE_T(array_uninitialized_size)(RDONLY_ARRAY_T(self));
 
 /* Returns the data contained in 'self' in between sp -> ep into a newly
  * allocated buffer.
  */
-void *array_extract(SELF_RDONLY, size_t sp, size_t ep);
+PTR_T(array_extract)(RDONLY_ARRAY_T(src), SIZE_T(sp), SIZE_T(ep));
 
 /* Extract and returns the data from 'self' in between sp -> ep (included) into
  * a newly allocated array. If a position is negative, it is iterpreted as an
@@ -114,107 +122,107 @@ void *array_extract(SELF_RDONLY, size_t sp, size_t ep);
  *     array_pull(v, -1, -1) = [c].
  *     array_pull(v, -2, -1) = [b, c].
  */
-array_t *array_pull(SELF_RDONLY, st64_t sp, st64_t ep);
+ARRAY_T(array_pull)(RDONLY_ARRAY_T(src), INT_T(sp), INT_T(ep));
 
 /* Frees the the array, purging the content beforhand.
  */
-void array_kill(SELF);
+NONE_T(array_kill)(ARRAY_T(self));
 
 /* Adds a new element at the end of the array, after its current
  * last element. The data pointed to by 'e' is copied (or moved) to the
  * new element.
  */
-bool array_push(SELF, void *e);
+BOOL_T(array_push)(ARRAY_T(self), PTR_T(e));
 
 /* Removes the last element of the array, effectively reducing
  * the container size by one.
  */
-void array_pop(SELF, void *into);
+NONE_T(array_pop)(ARRAY_T(self), PTR_T(into));
 
 /* Adds a new element to the front of the array, before the
  * first element. The content of 'e' is copied (or moved) to the
  * new element.
  */
-bool array_pushf(SELF, void *e);
+BOOL_T(array_pushf)(ARRAY_T(self), PTR_T(e));
 
 /* Removes the first element from the array, reducing
  * the container size by one.
  */
-void array_popf(SELF, void *into);
+NONE_T(array_popf)(ARRAY_T(self), PTR_T(into));
 
 /* Copies 'n' bytes of data pointed to by 'src' directly into the array's buffer
  * at the specified offset (in bytes).
  */
-void array_copy(SELF, ptrdiff_t off, const void *src, size_t n);
+NONE_T(array_copy)(ARRAY_T(self), SIZE_T(off), RDONLY_PTR_T(src), SIZE_T(n));
 
 /* The array is extended by injecting a new element before the
  * element at the specified position, effectively increasing
  * the array's size by one.
  */
-bool array_insert(SELF, size_t p, void *e);
+BOOL_T(array_insert)(ARRAY_T(self), SIZE_T(p), PTR_T(e));
 
 /* Injects 'n' elements pointed to by 'src' into the array, at
  * potitions 'p'.
  */
-bool array_inject(SELF, size_t p, const void *src, size_t n);
+BOOL_T(array_inject)(ARRAY_T(self), SIZE_T(p), RDONLY_PTR_T(src), SIZE_T(n));
 
 /* Appends 'n' elements pointed to by 'src' into the array.
  */
-bool array_append(SELF, const void *src, size_t n);
+BOOL_T(array_append)(ARRAY_T(self), RDONLY_PTR_T(src), SIZE_T(n));
 
 /* Returns a pointer to the element at the specified position.
  */
-void *array_access(SELF_RDONLY, size_t p);
-void *array_unsafe_access(SELF_RDONLY, size_t p);
+PTR_T(array_access)(RDONLY_ARRAY_T(self), SIZE_T(p));
+PTR_T(array_unsafe_access)(RDONLY_ARRAY_T(self), SIZE_T(p));
 
 /* Identical to 'access', only this return a const pointer
  */
-const void *array_at(SELF_RDONLY, size_t p);
-const void *array_unsafe_at(SELF_RDONLY, size_t pos);
+RDONLY_PTR_T(array_at)(RDONLY_ARRAY_T(self), SIZE_T(p));
+RDONLY_PTR_T(array_unsafe_at)(RDONLY_ARRAY_T(self), SIZE_T(pos));
 
 /* Appends n elements from capacity. The application must have initialized
- * the storage backing these elements otherwise the behavior is undefined. 
+ * the storage backing these elements otherwise the behavior is undefined.
  */
-bool array_append_from_capacity(SELF, size_t n);
+BOOL_T(array_append_from_capacity)(ARRAY_T(self), SIZE_T(n));
 
 /* The element at position 'a' and the element at position 'b'
  * are swapped.
  */
-void array_swap(SELF, size_t a, size_t b);
+NONE_T(array_swap_elems)(ARRAY_T(self), SIZE_T(a), SIZE_T(b));
 
 /* Removes all elements from the array within start - end
  * (which are ran through v->free), leaving the container with
  * a size of v->_nmemb - abs(start - end).
  */
-void array_wipe(SELF, size_t sp, size_t ep);
+NONE_T(array_wipe)(ARRAY_T(self), SIZE_T(sp), SIZE_T(ep));
 
 /* Removes all the elements from the array.
  */
-void array_clear(SELF);
+NONE_T(array_clear)(ARRAY_T(self));
 
 /* Removes the element at 'pos' from the array,
  * decreasing the size by one.
  */
-void array_evict(SELF, size_t p);
+NONE_T(array_evict)(ARRAY_T(self), SIZE_T(p));
 
 /* Adjusts the array capacity to be at least enough to
  * contain the current + n elements.
  */
-bool array_adjust(SELF, size_t n);
+BOOL_T(array_adjust)(ARRAY_T(self), SIZE_T(n));
 
 /* Returns a pointer to the first element in the array.
  */
-void *array_head(SELF_RDONLY);
+PTR_T(array_head)(RDONLY_ARRAY_T(self));
 
 /* Returns a pointer to the last element in the array.
  */
-void *array_tail(SELF_RDONLY);
+PTR_T(array_tail)(RDONLY_ARRAY_T(self));
 
 #if defined(ENABLE_STATISTICS)
 /* Dump the stats of the array. The stats are traced only when
  * ENABLE_STATISTICS is defined
  */
-void array_stats(SELF_RDONLY);
+NONE_T(array_stats)(RDONLY_ARRAY_T(self));
 #endif /* ENABLE_STATISTICS */
 
 #endif /* __array_H__*/

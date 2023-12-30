@@ -24,7 +24,7 @@ static inline bool array_init(array_t **self, size_t size) {
   return (true);
 }
 
-array_t *array_create(size_t elt_size, size_t n, void (*free)(void *)) {
+ARRAY_T(array_create)(SIZE_T(elt_size), SIZE_T(n), void (*free)(void *)) {
   RETURN_VAL_IF_FAIL(elt_size, NULL);
   RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_MUL(elt_size, n), NULL);
 
@@ -54,7 +54,7 @@ array_t *array_create(size_t elt_size, size_t n, void (*free)(void *)) {
   return (array);
 }
 
-void *array_extract(const array_t *src, size_t sp, size_t ep) {
+PTR_T(array_extract)(RDONLY_ARRAY_T(src), SIZE_T(sp), SIZE_T(ep)) {
   RETURN_VAL_IF_FAIL(src, NULL);
   RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_SUB(ep, sp), NULL);
   RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_MUL((ep - sp), src->_elt_size), NULL);
@@ -68,10 +68,10 @@ void *array_extract(const array_t *src, size_t sp, size_t ep) {
   return (ptr);
 }
 
-array_t *array_pull(const array_t *src, st64_t sp, st64_t ep) {
+ARRAY_T(array_pull)(RDONLY_ARRAY_T(src), INT_T(sp), INT_T(ep)) {
   RETURN_VAL_IF_FAIL(src, NULL);
-  RETURN_VAL_IF_FAIL((sp >= LONG_MIN && sp <= LONG_MAX), NULL);
-  RETURN_VAL_IF_FAIL((ep >= LONG_MIN && ep <= LONG_MAX), NULL);
+  RETURN_VAL_IF_FAIL(src->_nmemb > ABS(sp), NULL);
+  RETURN_VAL_IF_FAIL(src->_nmemb > ABS(ep), NULL);
 
   if (sp < 0)
     sp += src->_nmemb;
@@ -83,8 +83,6 @@ array_t *array_pull(const array_t *src, st64_t sp, st64_t ep) {
   array_t *arr = NULL;
   size_t n_elems = labs(sp - ep);
   size_t size = n_elems * src->_elt_size;
-
-  RETURN_VAL_IF_FAIL(sp + size < src->_elt_size * src->_nmemb, 0);
 
   if (unlikely(!array_init(&arr, size)))
     return (NULL);
@@ -112,7 +110,7 @@ array_t *array_pull(const array_t *src, st64_t sp, st64_t ep) {
   return (arr);
 }
 
-void array_clear(array_t *self) {
+NONE_T(array_clear)(ARRAY_T(self)) {
   RETURN_IF_FAIL(self);
 
   if (self->_free) {
@@ -126,14 +124,14 @@ void array_clear(array_t *self) {
 #endif
 }
 
-void array_kill(array_t *self) {
+NONE_T(array_kill)(ARRAY_T(self)) {
   RETURN_IF_FAIL(self);
 
   array_clear(self);
   __array_allocator__._memory_free(self);
 }
 
-bool array_adjust(array_t *self, size_t n) {
+BOOL_T(array_adjust)(ARRAY_T(self), SIZE_T(n)) {
   RETURN_VAL_IF_FAIL(self, false);
   RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_ADD(self->_nmemb, n), false);
   RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_MUL(self->_cap, 2), false);
@@ -185,13 +183,13 @@ bool array_adjust(array_t *self, size_t n) {
   return (true);
 }
 
-bool array_push(array_t *self, void *elem) {
+BOOL_T(array_push)(ARRAY_T(self), PTR_T(e)) {
   RETURN_VAL_IF_FAIL(self, false);
 
   if (unlikely(!array_adjust(self, 1)))
     return (false);
 
-  (void)builtin_memmove(GET_POINTER(self, self->_nmemb), elem, self->_elt_size);
+  (void)builtin_memmove(GET_POINTER(self, self->_nmemb), e, self->_elt_size);
 
   ++self->_nmemb;
 
@@ -201,7 +199,7 @@ bool array_push(array_t *self, void *elem) {
   return (true);
 }
 
-void array_pop(array_t *self, void *into) {
+NONE_T(array_pop)(ARRAY_T(self), PTR_T(into)) {
   RETURN_IF_FAIL(self);
   RETURN_IF_FAIL(self->_nmemb);
 
@@ -218,9 +216,11 @@ void array_pop(array_t *self, void *into) {
 #endif
 }
 
-bool array_pushf(array_t *self, void *e) { return (array_insert(self, 0, e)); }
+BOOL_T(array_pushf)(ARRAY_T(self), PTR_T(e)) {
+  return (array_insert(self, 0, e));
+}
 
-void array_popf(array_t *self, void *into) {
+NONE_T(array_popf)(ARRAY_T(self), PTR_T(into)) {
   RETURN_IF_FAIL(self);
 
   if (into)
@@ -228,7 +228,7 @@ void array_popf(array_t *self, void *into) {
   array_evict(self, 0);
 }
 
-bool array_insert(array_t *self, size_t p, void *node) {
+BOOL_T(array_insert)(ARRAY_T(self), SIZE_T(p), PTR_T(e)) {
   RETURN_VAL_IF_FAIL(self, false);
   RETURN_VAL_IF_FAIL(p <= self->_nmemb, false);
 
@@ -242,7 +242,7 @@ bool array_insert(array_t *self, size_t p, void *node) {
                         self->_nmemb * self->_elt_size - p * self->_elt_size);
 
 skip:
-  (void)builtin_memcpy(GET_POINTER(self, p), node, self->_elt_size);
+  (void)builtin_memcpy(GET_POINTER(self, p), e, self->_elt_size);
   ++self->_nmemb;
 
 #if defined(ENABLE_STATISTICS)
@@ -251,20 +251,24 @@ skip:
   return (true);
 }
 
-void array_copy(array_t *self, ptrdiff_t off, const void *src, size_t n) {
+NONE_T(array_copy)(ARRAY_T(self), SIZE_T(off), RDONLY_PTR_T(src), SIZE_T(n)) {
   RETURN_IF_FAIL(self);
   RETURN_IF_FAIL(src);
 
   (void)builtin_memmove((char *)self->_ptr + off, src, n);
 }
 
-bool array_inject(array_t *self, size_t p, const void *src, size_t n) {
+BOOL_T(array_inject)(ARRAY_T(self), SIZE_T(p), RDONLY_PTR_T(src), SIZE_T(n)) {
   RETURN_VAL_IF_FAIL(self, false);
+  RETURN_VAL_IF_FAIL(src, false);
   RETURN_VAL_IF_FAIL(p <= self->_nmemb, false);
 
   if (unlikely(!array_adjust(self, n)))
     return (false);
 
+  if (unlikely(!n))
+    return (true);
+  
   if (!self->_nmemb || p == self->_nmemb)
     goto skip_moving;
 
@@ -281,7 +285,7 @@ skip_moving:
   return (true);
 }
 
-bool array_append(array_t *self, const void *src, size_t n) {
+BOOL_T(array_append)(ARRAY_T(self), RDONLY_PTR_T(src), SIZE_T(n)) {
   RETURN_VAL_IF_FAIL(self, false);
   RETURN_VAL_IF_FAIL(src, false);
 
@@ -299,35 +303,35 @@ bool array_append(array_t *self, const void *src, size_t n) {
   return (true);
 }
 
-const void *array_at(const array_t *self, size_t pos) {
+RDONLY_PTR_T(array_at)(RDONLY_ARRAY_T(self), SIZE_T(p)) {
   RETURN_VAL_IF_FAIL(self, NULL);
-  RETURN_VAL_IF_FAIL(self->_nmemb >= pos, NULL);
+  RETURN_VAL_IF_FAIL(self->_nmemb >= p, NULL);
 
-  if (unlikely(pos >= self->_nmemb))
+  if (unlikely(p >= self->_nmemb))
     return (NULL);
 
-  return (GET_POINTER(self, pos));
+  return (GET_POINTER(self, p));
 }
 
-const void *array_unsafe_at(const array_t *self, size_t pos) {
-  return (GET_POINTER(self, pos));
+RDONLY_PTR_T(array_unsafe_at)(RDONLY_ARRAY_T(self), SIZE_T(p)) {
+  return (GET_POINTER(self, p));
 }
 
-void *array_access(const array_t *self, size_t pos) {
+PTR_T(array_access)(RDONLY_ARRAY_T(self), SIZE_T(p)) {
   RETURN_VAL_IF_FAIL(self, NULL);
-  RETURN_VAL_IF_FAIL(self->_nmemb >= pos, NULL);
+  RETURN_VAL_IF_FAIL(self->_nmemb >= p, NULL);
 
-  if (unlikely(pos >= self->_nmemb))
+  if (unlikely(p >= self->_nmemb))
     return (NULL);
 
-  return (GET_POINTER(self, pos));
+  return (GET_POINTER(self, p));
 }
 
-void *array_unsafe_access(const array_t *self, size_t pos) {
-  return (GET_POINTER(self, pos));
+PTR_T(array_unsafe_access)(RDONLY_ARRAY_T(self), SIZE_T(p)) {
+  return (GET_POINTER(self, p));
 }
 
-void array_evict(array_t *self, size_t p) {
+NONE_T(array_evict)(ARRAY_T(self), SIZE_T(p)) {
   RETURN_IF_FAIL(self);
   RETURN_IF_FAIL(p < self->_nmemb);
 
@@ -346,7 +350,7 @@ void array_evict(array_t *self, size_t p) {
 #endif
 }
 
-void array_wipe(array_t *self, size_t sp, size_t ep) {
+NONE_T(array_wipe)(ARRAY_T(self), SIZE_T(sp), SIZE_T(ep)) {
   RETURN_IF_FAIL(self);
   RETURN_IF_FAIL(sp < ep);
   RETURN_IF_FAIL(ep - sp <= self->_nmemb);
@@ -369,7 +373,7 @@ void array_wipe(array_t *self, size_t sp, size_t ep) {
 #endif
 }
 
-void array_swap(array_t *self, size_t a, size_t b) {
+NONE_T(array_swap_elems)(ARRAY_T(self), SIZE_T(a), SIZE_T(b)) {
   RETURN_IF_FAIL(self);
   RETURN_IF_FAIL(a < self->_nmemb);
   RETURN_IF_FAIL(b < self->_nmemb);
@@ -385,9 +389,9 @@ void array_swap(array_t *self, size_t a, size_t b) {
   }
 }
 
-void *array_head(const array_t *self) { return (array_access(self, 0)); }
+PTR_T(array_head)(RDONLY_ARRAY_T(self)) { return (array_access(self, 0)); }
 
-void *array_tail(const array_t *self) {
+PTR_T(array_tail)(RDONLY_ARRAY_T(self)) {
   RETURN_VAL_IF_FAIL(self, NULL);
 
   if (!self->_nmemb)
@@ -396,21 +400,20 @@ void *array_tail(const array_t *self) {
   return (array_access(self, self->_nmemb - 1));
 }
 
-size_t array_size(const array_t *self) {
+SIZE_T(array_size)(RDONLY_ARRAY_T(self)) {
   RETURN_VAL_IF_FAIL(self, 0);
 
   return (self->_nmemb);
 }
+PTR_T(array_data)(RDONLY_ARRAY_T(self)) { return array_head(self); }
 
-void *array_data(const array_t *self) { return array_head(self); }
-
-void *array_uninitialized_data(const array_t *self) {
+PTR_T(array_uninitialized_data)(RDONLY_ARRAY_T(self)) {
   RETURN_VAL_IF_FAIL(self, NULL);
 
   return (array_unsafe_access(self, self->_nmemb));
 }
 
-size_t array_uninitialized_size(const array_t *self) {
+SIZE_T(array_uninitialized_size)(RDONLY_ARRAY_T(self)) {
   RETURN_VAL_IF_FAIL(self, 0);
 
   size_t size_in_bytes = self->_cap - self->_nmemb * self->_elt_size;
@@ -420,13 +423,13 @@ size_t array_uninitialized_size(const array_t *self) {
   return (size_in_bytes);
 }
 
-size_t array_cap(const array_t *self) {
+SIZE_T(array_cap)(RDONLY_ARRAY_T(self)) {
   RETURN_VAL_IF_FAIL(self, 0);
 
   return (self->_cap);
 }
 
-bool array_append_from_capacity(array_t *self, size_t n) {
+BOOL_T(array_append_from_capacity)(ARRAY_T(self), SIZE_T(n)) {
   RETURN_VAL_IF_FAIL(self, false);
 
   if (n > array_uninitialized_size(self))
@@ -440,7 +443,7 @@ bool array_append_from_capacity(array_t *self, size_t n) {
   return (true);
 }
 
-bool array_slimcheck(array_t *self) {
+BOOL_T(array_slimcheck)(ARRAY_T(self)) {
   RETURN_VAL_IF_FAIL(self, false);
 
   if (unlikely(SETTLED(self)))
@@ -471,26 +474,26 @@ bool array_slimcheck(array_t *self) {
   return (true);
 }
 
-void array_settle(array_t *self) {
+NONE_T(array_settle)(ARRAY_T(self)) {
   RETURN_IF_FAIL(self);
 
   self->settled = true;
 }
 
-void array_unsettle(array_t *self) {
+NONE_T(array_unsettle)(ARRAY_T(self)) {
   RETURN_IF_FAIL(self);
 
   self->settled = false;
 }
 
-bool array_is_settled(const array_t *self) {
+BOOL_T(array_is_settled)(RDONLY_ARRAY_T(self)) {
   RETURN_VAL_IF_FAIL(self, false);
 
   return (self->settled);
 }
 
 #if defined(ENABLE_STATISTICS)
-void array_stats(const array_t *self) {
+NONE_T(array_stats)(RDONLY_ARRAY_T(self)) {
   RETURN_IF_FAIL(self);
 
   size_t i = 0;
@@ -507,10 +510,12 @@ void array_stats(const array_t *self) {
     i++;
   }
   (void)fprintf(stderr, "\nSTATISTICS:\n");
-  (void)fprintf(stderr, "  allocations: %ld bytes in %ld blocks (%ld freed)\n",
-                self->_stats.n_bytes_allocd, self->_stats.n_allocs,
-                self->_stats.n_frees);
-  (void)fprintf(stderr, "       in use: %ld bytes out of %ld reserved\n",
+  (void)fprintf(stderr, " - %ld elements of %ld bytes:\n", self->_nmemb,
+                self->_elt_size);
+  (void)fprintf(
+      stderr, "    - allocations: %ld bytes in %ld blocks (%ld freed)\n",
+      self->_stats.n_bytes_allocd, self->_stats.n_allocs, self->_stats.n_frees);
+  (void)fprintf(stderr, "    - in use:      %ld bytes out of %ld reserved\n",
                 self->_stats.n_bytes_in_use, self->_stats.n_bytes_reachable);
 }
 #endif /* ENABLE_STATISTICS */

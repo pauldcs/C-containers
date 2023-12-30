@@ -14,14 +14,15 @@ typedef struct {
 
 #ifdef SELF
 #undef SELF
-#define SELF dynstr_t *
 #endif
+
+#define SELF dynstr_t *
 
 #ifdef SELF_RDONLY
 #undef SELF_RDONLY
-#define SELF_RDONLY const dynstr_t *
 #endif
 
+#define SELF_RDONLY const dynstr_t *
 /* Creates a new empty dynamic string and adjusts its starting capacity
  * to be at least enough to hold 'n' + 1 characters.
  */
