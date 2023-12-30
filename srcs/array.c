@@ -25,7 +25,8 @@ static inline bool array_init(array_t **self, size_t size) {
 }
 
 array_t *array_create(size_t elt_size, size_t n, void (*free)(void *)) {
-  RETURN_VAL_IF_FAIL(SIZE_MAX / elt_size > n, NULL);
+  RETURN_VAL_IF_FAIL(elt_size, NULL);
+  RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_MUL(elt_size, n), NULL);
 
   if (!n) {
     n = ARRAY_INITIAL_SIZE;
@@ -55,10 +56,10 @@ array_t *array_create(size_t elt_size, size_t n, void (*free)(void *)) {
 
 void *array_extract(const array_t *src, size_t sp, size_t ep) {
   RETURN_VAL_IF_FAIL(src, NULL);
-  RETURN_VAL_IF_FAIL(sp < ep, NULL);
-  RETURN_VAL_IF_FAIL((ep - sp) < SIZE_MAX, NULL);
-  RETURN_VAL_IF_FAIL(src->_elt_size * src->_nmemb > (ep - sp) * src->_elt_size,
-                     NULL);
+  RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_SUB(ep, sp), NULL);
+  RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_MUL((ep - sp), src->_elt_size), NULL);
+  RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_SUB(src->_nmemb, sp), NULL);
+  RETURN_VAL_IF_FAIL((src->_nmemb - sp) >= (ep - sp), NULL);
 
   void *ptr = __array_allocator__._memory_alloc((ep - sp) * src->_elt_size);
   if (likely(ptr))
@@ -134,10 +135,12 @@ void array_kill(array_t *self) {
 
 bool array_adjust(array_t *self, size_t n) {
   RETURN_VAL_IF_FAIL(self, false);
-  RETURN_VAL_IF_FAIL(SIZE_MAX - self->_nmemb > n, false);
-  RETURN_VAL_IF_FAIL(SIZE_MAX / self->_elt_size > n, false);
+  RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_ADD(self->_nmemb, n), false);
+  RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_MUL(self->_cap, 2), false);
+  RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_MUL(self->_nmemb + n, self->_elt_size),
+                     false);
 
-  size_t size;
+  size_t size = 0;
 
   n += self->_nmemb;
   n *= self->_elt_size;
@@ -251,7 +254,6 @@ skip:
 void array_copy(array_t *self, ptrdiff_t off, const void *src, size_t n) {
   RETURN_IF_FAIL(self);
   RETURN_IF_FAIL(src);
-  RETURN_IF_FAIL((size_t)off + n <= self->_cap);
 
   (void)builtin_memmove((char *)self->_ptr + off, src, n);
 }
@@ -264,12 +266,12 @@ bool array_inject(array_t *self, size_t p, const void *src, size_t n) {
     return (false);
 
   if (!self->_nmemb || p == self->_nmemb)
-    goto skip;
+    goto skip_moving;
 
   (void)builtin_memmove(GET_POINTER(self, p + n), GET_POINTER(self, p),
                         self->_elt_size * (self->_nmemb - p));
 
-skip:
+skip_moving:
   (void)builtin_memmove(GET_POINTER(self, p), src, self->_elt_size * n);
   self->_nmemb += n;
 

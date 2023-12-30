@@ -127,4 +127,12 @@ typedef struct {
   } while (0)
 #endif /* defined (DISABLE_ASSERTIONS) */
 
+#define SAFE_TO_ADD(a, b, max) (a <= max - b)
+#define SAFE_TO_MUL(a, b, max) (b == 0 || a <= max / b)
+#define SAFE_TO_SUB(a, b, min) (a >= min + b)
+
+#define SIZE_T_SAFE_TO_MUL(a, b) SAFE_TO_MUL(a, b, SIZE_MAX)
+#define SIZE_T_SAFE_TO_ADD(a, b) SAFE_TO_ADD(a, b, SIZE_MAX)
+#define SIZE_T_SAFE_TO_SUB(a, b) SAFE_TO_SUB(a, b, 0)
+
 #endif /* __INTERNAL_H__ */
