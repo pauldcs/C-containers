@@ -1,3 +1,4 @@
+
 #include "array.h"
 #include "unit_tests.h"
 #include "internal.h"
@@ -20,6 +21,9 @@ static bool __test_002__(void) {
 
 	int __arr__[] = {111, 222, 333, 444, 555, 666, 777, 888, 999};
 
+	ASSERT_NUM_EQUAL(array_inject(a, 1, __arr__, 3), false, "%d");
+	ASSERT_IS_NULL((void *)array_at(a, 0));
+	
 	array_push(a, __PTRIZE_ST32__(1));
 	array_push(a, __PTRIZE_ST32__(-1));
 
@@ -40,15 +44,34 @@ static bool __test_002__(void) {
 	ASSERT_NUM_EQUAL(*(int *)array_at(a, 0), 1, "%d");
 	ASSERT_NUM_EQUAL(*(int *)array_tail(a), -1, "%d");
 	ASSERT_NUM_EQUAL(*(int *)array_at(a, 2), 999, "%d");
-	array_stats(a);
 	return (true);
 }
 
+static bool __test_003__(void) {
+	array_t *a = array_create(sizeof(int), 16, NULL);
+
+	int __arr__[] = {111, 222, 333, 444, 555, 666, 777, 888, 999};
+
+	ASSERT_NUM_EQUAL(array_append(a, __arr__, 2), true, "%d");
+	ASSERT_NUM_EQUAL(array_append(a, __arr__, 0), true, "%d");
+	ASSERT_NUM_EQUAL(*(int *)array_at(a, 0), 111, "%d");
+	ASSERT_NUM_EQUAL(*(int *)array_at(a, 1), 222, "%d");
+	ASSERT_IS_NULL((void *)array_at(a, 2));
+	ASSERT_IS_NULL((void *)array_append(a, NULL, 2));
+	ASSERT_IS_NULL((void *)array_append(NULL, __arr__, 2));
+	ASSERT_IS_NULL((void *)array_append(a, __arr__, SIZE_MAX));
+	ASSERT_NUM_EQUAL(array_append(a, __arr__, 9), true, "%d");
+	ASSERT_NUM_EQUAL(*(int *)array_at(a, array_size(a) - 1), 999, "%d");
+	ASSERT_NUM_EQUAL(*(int *)array_at(a, 0), 111, "%d");
+	array_stats(a);
+	return (true);
+}
 TEST_FUNCTION void array_error_specs(void) {
 	__test_start__;
 
 	run_test(&__test_001__, "array create");
 	run_test(&__test_002__, "array inject");
+	run_test(&__test_003__, "array append");
 
 	__test_end__;
 }

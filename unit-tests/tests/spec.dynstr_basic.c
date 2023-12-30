@@ -10,7 +10,7 @@ static bool __test_001__(void) {
   dynstr_t *str = dynstr_create(0);
 
   ASSERT_NUM_EQUAL(str->_nmemb, (size_t)1, "%zu");
-  ASSERT_NUM_EQUAL(str->_cap, (size_t)1, "%zu");
+  ASSERT_NUM_EQUAL(str->_cap, (size_t)8, "%zu");
 
   dynstr_append(str, "this", -1);
   ASSERT_NUM_EQUAL(str->_nmemb, (size_t)5, "%zu");

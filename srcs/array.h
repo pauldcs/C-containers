@@ -47,8 +47,8 @@ typedef struct {
 
 /* DEFINED TYPES */
 #define ARRAY_T(__x) array_t *__x
-#define BOOL_T(__x) bool __x
-#define RDONLY_ARRAY_T(__array) const array_t *__array
+#define BOOL_T(__b) bool __b
+#define RDONLY_ARRAY_T(__a) const array_t *__a
 #define SIZE_T(__n) size_t __n
 #define INT_T(__n) int64_t __n
 #define INDEX_T(__i) size_t __i
@@ -64,18 +64,18 @@ typedef struct {
 ARRAY_T(array_create)(SIZE_T(elt_size), SIZE_T(n), void (*_free)(void *));
 
 /* Reallocates the array if more than half of the current capacity is unused.
- * If the reallocation fails the array remains untouched and the function
+ * If the reallocation fails the array is untouched and the function
  * returns false.
  */
 BOOL_T(array_slimcheck)(ARRAY_T(self));
 
-/* Marks the array as settled which makes it unable to reserve additional
- * memory. Should be called once the array is known to have gotten to
+/* Once settled, the array is unable to reserve additional memory.
+ * This should be called once the array is known to have gotten to
  * it's final size.
  */
 NONE_T(array_settle)(ARRAY_T(self));
 
-/* Cancels 'array_settle()'.
+/* Marks the array as unsettled.
  */
 NONE_T(array_unsettle)(ARRAY_T(self));
 
@@ -96,13 +96,14 @@ SIZE_T(array_cap)(RDONLY_ARRAY_T(self));
  */
 PTR_T(array_data)(RDONLY_ARRAY_T(self));
 
-/* Pointer to the first uninitialized element in the allocated buffer.
- */
-PTR_T(array_uninitialized_data)(RDONLY_ARRAY_T(self));
-
-/* Returns the number of elements that would fit in the left capacity.
+/* Returns the number of elements that can fit in the buffer without
+ * having to reallocate.
  */
 SIZE_T(array_uninitialized_size)(RDONLY_ARRAY_T(self));
+
+/* Pointer to the first uninitialized element in the buffer.
+ */
+PTR_T(array_uninitialized_data)(RDONLY_ARRAY_T(self));
 
 /* Returns the data contained in 'self' in between sp -> ep into a newly
  * allocated buffer.
@@ -124,7 +125,7 @@ PTR_T(array_extract)(RDONLY_ARRAY_T(src), SIZE_T(sp), SIZE_T(ep));
  */
 ARRAY_T(array_pull)(RDONLY_ARRAY_T(src), INT_T(sp), INT_T(ep));
 
-/* Frees the the array, purging the content beforhand.
+/* Frees the array, clearing the content beforhand.
  */
 NONE_T(array_kill)(ARRAY_T(self));
 

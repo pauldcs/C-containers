@@ -7,6 +7,9 @@
 #include <stdio.h>
 #include <string.h>
 
+//# define DISABLE_HARDENED_RUNTIME
+//# define DISABLE_HARDENED_RUNTIME_LOGGING
+
 #define cut8_t const uint8_t
 #define ct8_t const char
 #define ut64_t uint64_t
@@ -108,17 +111,16 @@ typedef struct {
 #define RETURN_IF_FAIL(expr)
 #define RETURN_VAL_IF_FAIL(expr, val)
 #else
-#define LOG_ERRORS_STDERR // enabled by default
-#if defined(LOG_ERRORS_STDERR)
+#if defined(DISABLE_HARDENED_RUNTIME_LOGGING)
+#define LOG_ERROR_MSG(expr)
+#else
 #define LOG_ERROR_MSG(expr)                                                    \
   do {                                                                         \
-    (void)fprintf(stderr, "error: HARDENED_RUNTIME file '%s', line: %d: (%s)\n",     \
+    (void)fprintf(stderr,                                                      \
+                  "error: HARDENED_RUNTIME file '%s', line: %d: (%s)\n",       \
                   __FILE__, __LINE__, #expr);                                  \
   } while (0)
-#else
-#define LOG_ERROR_MSG(expr)
-#endif /* defined(LOG_ERRORS_STDERR) */
-
+#endif /* defined(DISABLE_HARDENED_RUNTIME_LOGGING) */
 #define RETURN_IF_FAIL(expr)                                                   \
   do {                                                                         \
     if (!(expr)) {                                                             \
