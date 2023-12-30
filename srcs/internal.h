@@ -104,14 +104,14 @@ typedef struct {
 #define builtin_memmove(dest, src, size) memmove(dest, src, size)
 #endif
 
-#if defined(DISABLE_ASSERTIONS)
+#if defined(DISABLE_HARDENED_RUNTIME)
 #define RETURN_IF_FAIL(expr)
 #define RETURN_VAL_IF_FAIL(expr, val)
 #else
 #define RETURN_IF_FAIL(expr)                                                   \
   do {                                                                         \
     if (!(expr)) {                                                             \
-      (void)fprintf(stderr, "file '%s', line: %d\n/!\\ alert: (%s)\n",         \
+      (void)fprintf(stderr, "file '%s', line: %d\nHARDENED_RUNTIME: (%s)\n",   \
                     __FILE__, __LINE__, #expr);                                \
       return;                                                                  \
     };                                                                         \
@@ -120,7 +120,7 @@ typedef struct {
 #define RETURN_VAL_IF_FAIL(expr, val)                                          \
   do {                                                                         \
     if (!(expr)) {                                                             \
-      (void)fprintf(stderr, "file '%s', line: %d\n/!\\ alert: (%s)\n",         \
+      (void)fprintf(stderr, "file '%s', line: %d\nHARDENED_RUNTIME: (%s)\n",   \
                     __FILE__, __LINE__, #expr);                                \
       return val;                                                              \
     };                                                                         \
