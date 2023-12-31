@@ -7,8 +7,9 @@
 #include <stdio.h>
 #include <string.h>
 
-//# define DISABLE_HARDENED_RUNTIME
-//# define DISABLE_HARDENED_RUNTIME_LOGGING
+// # define DISABLE_HARDENED_RUNTIME
+// # define DISABLE_HARDENED_RUNTIME_LOGGING
+// # define DISABLE_STATISTICS
 
 #define cut8_t const uint8_t
 #define ct8_t const char
@@ -149,5 +150,14 @@ typedef struct {
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define ABS(a) ((size_t)(((a) < 0) ? -(a) : (a)))
+
+#ifdef DISABLE_STATISTICS
+#define IF_TRACING(operation)                                                  
+#else
+#define IF_TRACING(operation)                                                  \
+  do {                                                                         \
+    operation;                                                                 \
+  } while (0)
+#endif
 
 #endif /* __INTERNAL_H__ */

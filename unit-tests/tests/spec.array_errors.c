@@ -63,7 +63,7 @@ static bool __test_003__(void) {
 	ASSERT_NUM_EQUAL(array_append(a, __arr__, 9), true, "%d");
 	ASSERT_NUM_EQUAL(*(int *)array_at(a, array_size(a) - 1), 999, "%d");
 	ASSERT_NUM_EQUAL(*(int *)array_at(a, 0), 111, "%d");
-	array_stats(a);
+	array_trace(a);
 	return (true);
 }
 TEST_FUNCTION void array_error_specs(void) {

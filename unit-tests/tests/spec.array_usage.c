@@ -38,7 +38,7 @@ static bool __test_001__(void) {
   array_append(arr, randnums, i);
 
   bubble_sort(arr);
-  //array_stats(arr);
+  //array_trace(arr);
 
   size_t j = 0;
   while (j + 1 < 1000) {

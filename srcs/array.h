@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 #define ARRAY_INITIAL_SIZE 128
-#define STATS_HISTORY_SIZE 10
+#define META_TRACE_SIZE 10
 
 #define GET_POINTER(v, pos) ((char *)(v)->_ptr + (v)->_elt_size * (pos))
 
@@ -27,8 +27,8 @@ typedef struct {
   void (*_free)(void *); /* element free function */
   bool settled;
 
-#define ENABLE_STATISTICS // currently defined by default
-#if defined(ENABLE_STATISTICS)
+#if defined(DISABLE_TRACING)
+#else
   struct {
     size_t n_allocs;          /* allocation counter */
     size_t n_frees;           /* deallocation counter */
@@ -38,10 +38,9 @@ typedef struct {
     struct {
       void *pointer;     /* the pointer */
       size_t alloc_size; /* the size of the allocation */
-    } history[STATS_HISTORY_SIZE];
-    size_t hindex;
-  } _stats;
-#else
+    } trace[META_TRACE_SIZE];
+    size_t tidx;
+  } _meta;
 #endif /* ENABLE_STATISTICS */
 } array_t;
 
@@ -219,11 +218,9 @@ PTR_T(array_head)(RDONLY_ARRAY_T(self));
  */
 PTR_T(array_tail)(RDONLY_ARRAY_T(self));
 
-#if defined(ENABLE_STATISTICS)
-/* Dump the stats of the array. The stats are traced only when
- * ENABLE_STATISTICS is defined
+/* Dumps a trace of the array. If DISABLE_TRACING is defined
+ * no data is collected at runtime.
  */
-NONE_T(array_stats)(RDONLY_ARRAY_T(self));
-#endif /* ENABLE_STATISTICS */
+NONE_T(array_trace)(RDONLY_ARRAY_T(self));
 
-#endif /* __array_H__*/
+#endif /* __ARRAY_H__*/
