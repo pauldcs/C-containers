@@ -21,61 +21,43 @@ specs_state_t  __specs__ = {
 	.failed  = 0,
 };
 
-/**
- * @test lkshldjhd
- * @test kjgk
- * 
- * lsihldhdl kjgd
- */
-bool run_test(bool (* test)(void), const char *title)
-{
-	fprintf(stderr, " running: %s%35s%s -> ", YEL, title, CRESET);
-	int	ret;
+bool run_test(bool (*test)(void), const char *title) {
+	struct timespec start_time, end_time;
+    fprintf(stderr, " running: %s%35s%s -> ", YEL, title, CRESET);
+    int ret;
 
-	clock_t start_time = clock();
-	pid_t pid = fork();
-	if (pid == -1) assert(0 && "Internal error");
+    clock_gettime(CLOCK_MONOTONIC, &start_time);
+    pid_t pid = fork();
+    if (pid == -1)
+        assert(0 && "Internal error");
+    else if (pid == 0) {
+        alarm(TIMEOUT_LIMIT);
+        if (test())
+            exit(0);
+        exit(1);
+    }
 
-	else if (pid == 0) {
-	
-		// int original_stdout = dup(fileno(stdout));
-  	// int original_stderr = dup(fileno(stderr));
-		// (void)freopen("/dev/null", "w", stdout);
-		// (void)freopen("/dev/null", "w", stderr);
+    while (waitpid(pid, &ret, 0) != -1)
+        continue;
 
-		alarm(TIMEOUT_LIMIT);
-		if (test())
-			exit(0);
-		exit(1);
+    clock_gettime(CLOCK_MONOTONIC, &end_time);
+    double execution_time_ms = (end_time.tv_sec - start_time.tv_sec) * 1000.0 +
+                               (end_time.tv_nsec - start_time.tv_nsec) / 1e6;
 
-		// (void)fflush(stdout);
-		// (void)fflush(stderr);
-		// (void)dup2(original_stdout, fileno(stdout));
-		// (void)dup2(original_stderr, fileno(stderr));
-		// (void)close(original_stdout); 
-		// (void)close(original_stderr);
+    if (WEXITSTATUS(ret))
+        goto test_ko;
 
-	}
-	while (waitpid(pid, &ret, 0) != -1)
-		continue ;
-
-	clock_t end_time = clock();
-	double execution_time_ms = (double)(end_time - start_time) * 1000 / CLOCKS_PER_SEC;
-
-	if (WEXITSTATUS(ret))
-		goto test_ko;
-
-	if (WIFSIGNALED(ret)) {
-		fprintf(stderr, "SIG %s, ", strsignal(WTERMSIG(ret)));
-		goto test_ko;
-	}
+    if (WIFSIGNALED(ret)) {
+        fprintf(stderr, "SIG %s, ", strsignal(WTERMSIG(ret)));
+        goto test_ko;
+    }
 
 	__specs__.passed++;
-	fprintf(stderr, "(%f ms) " BGRN "OK %s\n", execution_time_ms, CRESET);
-	return (true);
+    fprintf(stderr, "(%f ms) " BGRN "OK %s\n", execution_time_ms, CRESET);
+    return true;
 
 test_ko:
 	__specs__.failed++;
-	fprintf(stderr, "(%f ms) " BRED "KO %s\n", execution_time_ms, CRESET);
-	return (false);
+    fprintf(stderr, "(%f ms) " BRED "KO %s\n", execution_time_ms, CRESET);
+    return false;
 }

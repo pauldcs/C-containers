@@ -6,7 +6,7 @@
 #include <stddef.h>
 
 dynstr_t *dynstr_create(size_t n) {
-  RETURN_VAL_IF_FAIL(LONG_MAX - 1 > n, NULL);
+  HR_ABORT_IF(LONG_MAX - 1 <= n);
 
   array_t *dynstr = array_create(sizeof(char), n + 1, NULL);
 
@@ -18,8 +18,8 @@ dynstr_t *dynstr_create(size_t n) {
 }
 
 dynstr_t *dynstr_assign(const char *src, st64_t n) {
-  RETURN_VAL_IF_FAIL(src, NULL);
-  RETURN_VAL_IF_FAIL(LONG_MAX - 1 > n, NULL);
+  HR_ABORT_IF(src == NULL);
+  HR_ABORT_IF(LONG_MAX - 1 <= n);
 
   size_t init_size = (n == -1) ? strlen(src) : n;
   array_t *dynstr = array_create(sizeof(char), init_size + 1, NULL);
@@ -36,16 +36,16 @@ dynstr_t *dynstr_assign(const char *src, st64_t n) {
 void dynstr_kill(dynstr_t *self) { array_kill((array_t *)self); }
 
 bool dynstr_append(dynstr_t *self, const char *str, st64_t n) {
-  RETURN_VAL_IF_FAIL(str, false);
-  RETURN_VAL_IF_FAIL(LONG_MAX - 1 > n, NULL);
+  HR_ABORT_IF(str == NULL);
+  HR_ABORT_IF(LONG_MAX - 1 <= n);
 
   size_t str_length = (n == -1) ? strlen(str) : n;
   return (array_inject((array_t *)self, self->_nmemb - 1, str, str_length));
 }
 
 bool dynstr_inject(dynstr_t *self, size_t pos, const char *src, st64_t n) {
-  RETURN_VAL_IF_FAIL(src, false);
-  RETURN_VAL_IF_FAIL(LONG_MAX - 1 > n, NULL);
+  HR_ABORT_IF(src == NULL);
+  HR_ABORT_IF(LONG_MAX - 1 <= n);
 
   size_t str_length = (n == -1) ? strlen(src) : n;
   return (array_inject((array_t *)self, pos, src, str_length));

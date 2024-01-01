@@ -25,23 +25,18 @@ $(NAME): $(SRCS_OBJS)
 		-dynamiclib \
 		-o $(NAME) 
 
-specs: g
-	$(CC) \
-		unit-tests/main.c \
-		unit-tests/srcs/unit_tests.c \
-		-I unit-tests/srcs \
-		$(CFLAGS) \
-		$(CFLAGS_DBG) \
-		$(TEST_MAIN) \
-		$(SPECS_SRCS) \
-		-I $(INCS_DIR) \
-		-o tester \
-		-L. \
-		$(NAME) \
-
-
 g: CFLAGS += $(CFLAGS_DBG)
 g: all
+
+specs: g
+	$(CC) \
+		$(TEST_FRAMEWORK_SRCS) \
+		$(SPECS_SRCS) \
+		$(CFLAGS) \
+		-I $(INCS_DIR) \
+		-I $(TEST_FRAMEWORK_INCS_DIR) \
+		-L. $(NAME) \
+		-o tester
 
 clean:
 	rm -rf *.dSYM
@@ -49,8 +44,7 @@ clean:
 
 fclean: clean
 	rm -rf $(NAME)
-	rm -rf prog
-	rm -rf tester
+	rm -rf $(TEST_FRAMEWORK_BIN) 
 
 re: fclean all
 

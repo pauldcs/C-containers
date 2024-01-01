@@ -11,12 +11,12 @@ array_allocator_t __array_allocator__ = {
 
 /* Aligns the size by the machine word.
  */
-static inline size_t size_align(size_t n) {
-  return (n + sizeof(PTR_T()) - 1) & ~(sizeof(PTR_T()) - 1);
+static inline SIZE_TYPE(size_align)(SIZE_TYPE(n)) {
+  return (n + sizeof(PTR_TYPE()) - 1) & ~(sizeof(PTR_TYPE()) - 1);
 }
 
-static inline bool array_init(array_t **self, size_t size) {
-  *self = __array_allocator__._memory_alloc(sizeof(array_t));
+static inline BOOL_TYPE(array_init)(ARRAY_TYPE(*self), size_t size) {
+  *self = __array_allocator__._memory_alloc(sizeof(**self));
 
   if (unlikely(!*self)) {
     return (false);
@@ -24,9 +24,9 @@ static inline bool array_init(array_t **self, size_t size) {
 
   (void)builtin_memset(*self, 0x00, sizeof(array_t));
 
-  (*self)->_ptr = __array_allocator__._memory_alloc(size);
+  _data((*self)) = __array_allocator__._memory_alloc(size);
 
-  if (unlikely(!(*self)->_ptr)) {
+  if (unlikely(!_data((*self)))) {
     __array_allocator__._memory_free(*self);
     return (false);
   }
@@ -34,145 +34,149 @@ static inline bool array_init(array_t **self, size_t size) {
   return (true);
 }
 
-ARRAY_T(array_create)(SIZE_T(elt_size), SIZE_T(n), void (*free)(void *)) {
-  RETURN_VAL_IF_FAIL(elt_size, NULL);
-  RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_MUL(elt_size, n), NULL);
+ARRAY_TYPE(array_create)
+(SIZE_TYPE(elt_size), SIZE_TYPE(n), void (*free)(void *)) {
+  HR_ABORT_IF(elt_size == 0);
+  HR_ABORT_IF(SIZE_T_SAFE_TO_MUL(elt_size, n) == false);
 
   if (!n) {
     n = ARRAY_INITIAL_SIZE;
   }
 
-  SIZE_T(initial_cap) = size_align(elt_size * n);
-  ARRAY_T(array) = NULL;
+  ARRAY_TYPE(array) = NULL;
+  SIZE_TYPE(init_cap) = size_align(elt_size * n);
 
-  if (likely(array_init(&array, initial_cap))) {
-    array->_elt_size = elt_size;
-    array->_free = free;
-    array->_cap = initial_cap;
-    array->settled = false;
+  if (likely(array_init(&array, init_cap))) {
+    _typesize(array) = elt_size;
+    _capacity(array) = init_cap;
+    _freefunc(array) = free;
+    _settled(array) = false;
   }
 
-  IF_TRACING(array->_meta.n_allocs = 1);
-  IF_TRACING(array->_meta.n_bytes_allocd = initial_cap);
-  IF_TRACING(array->_meta.n_bytes_reachable = initial_cap);
-  IF_TRACING(array->_meta.trace[array->_meta.tidx].alloc_size = initial_cap);
-  IF_TRACING(array->_meta.trace[array->_meta.tidx].pointer = array->_ptr);
-  IF_TRACING((array->_meta.tidx)++);
-  IF_TRACING((array->_meta.tidx) %= META_TRACE_SIZE);
-  
+  IF_TRACED(array->_meta.n_allocs = 1);
+  IF_TRACED(array->_meta.n_bytes_allocd = init_cap);
+  IF_TRACED(array->_meta.n_bytes_reachable = init_cap);
+  IF_TRACED(array->_meta.trace[array->_meta.tidx].alloc_size = init_cap);
+  IF_TRACED(array->_meta.trace[array->_meta.tidx].pointer = _data(array));
+  IF_TRACED((array->_meta.tidx)++);
+  IF_TRACED((array->_meta.tidx) %= META_TRACE_SIZE);
+
   return (array);
 }
 
-PTR_T(array_extract)(RDONLY_ARRAY_T(src), SIZE_T(sp), SIZE_T(ep)) {
-  RETURN_VAL_IF_FAIL(src, NULL);
-  RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_SUB(ep, sp), NULL);
-  RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_MUL((ep - sp), src->_elt_size), NULL);
-  RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_SUB(src->_nmemb, sp), NULL);
-  RETURN_VAL_IF_FAIL((src->_nmemb - sp) >= (ep - sp), NULL);
+PTR_TYPE(array_extract)
+(RDONLY_ARRAY_TYPE(src), SIZE_TYPE(start), SIZE_TYPE(end)) {
+  HR_ABORT_IF(src == NULL);
+  HR_ABORT_IF(SIZE_T_SAFE_TO_SUB(end, start) == false);
+  HR_ABORT_IF(SIZE_T_SAFE_TO_MUL((end - start), _typesize(src)) == false);
+  HR_ABORT_IF(SIZE_T_SAFE_TO_SUB(_size(src), start) == false);
+  HR_ABORT_IF((_size(src) - start) < (end - start));
 
-  PTR_T(ptr) = __array_allocator__._memory_alloc((ep - sp) * src->_elt_size);
+  PTR_TYPE(ptr) =
+      __array_allocator__._memory_alloc((end - start) * _typesize(src));
 
   if (likely(ptr)) {
-    (void)builtin_memcpy(ptr, GET_POINTER(src, sp), (ep - sp) * src->_elt_size);
+    (void)builtin_memcpy(ptr, _relative_data(src, start),
+                         (end - start) * _typesize(src));
   }
 
   return (ptr);
 }
 
-ARRAY_T(array_pull)(RDONLY_ARRAY_T(src), INT_T(sp), INT_T(ep)) {
-  RETURN_VAL_IF_FAIL(src, NULL);
-  RETURN_VAL_IF_FAIL(src->_nmemb > ABS(sp), NULL);
-  RETURN_VAL_IF_FAIL(src->_nmemb > ABS(ep), NULL);
+ARRAY_TYPE(array_pull)
+(RDONLY_ARRAY_TYPE(src), SSIZE_TYPE(start), SSIZE_TYPE(end)) {
+  HR_ABORT_IF(src == NULL);
+  HR_ABORT_IF(_size(src) <= ABS(start));
+  HR_ABORT_IF(_size(src) <= ABS(end));
 
-  ARRAY_T(arr) = NULL;
+  ARRAY_TYPE(arr) = NULL;
 
-  if (sp < 0) {
-    sp += src->_nmemb;
+  if (start < 0) {
+    start += _size(src);
   }
 
-  if (ep < 0) {
-    ep += src->_nmemb;
+  if (end < 0) {
+    end += _size(src);
   }
 
-  sp < ep ? (ep++) : (ep--);
+  start < end ? (end++) : (end--);
 
-  SIZE_T(n_elems) = labs(sp - ep);
-  SIZE_T(size) = n_elems * src->_elt_size;
+  SIZE_TYPE(n_elems) = labs(start - end);
+  SIZE_TYPE(buffersize) = n_elems * _typesize(src);
 
-  if (unlikely(!array_init(&arr, size))) {
+  if (unlikely(!array_init(&arr, buffersize))) {
     return (NULL);
   }
 
-  arr->_elt_size = src->_elt_size;
-  arr->_free = src->_free;
-  arr->_cap = size;
-  arr->_nmemb = n_elems;
-  arr->settled = true;
+  _typesize(arr) = _typesize(src);
+  _freefunc(arr) = _freefunc(src);
+  _capacity(arr) = buffersize;
+  _size(arr) = n_elems;
+  _settled(arr) = true;
 
-  if (sp < ep) {
-    (void)builtin_memcpy(arr->_ptr, GET_POINTER(src, sp), size);
+  if (start < end) {
+    (void)builtin_memcpy(_data(arr), _relative_data(src, start), buffersize);
 
   } else {
-    PTR_T(ptr) = arr->_ptr;
-    SIZE_T(step) = src->_elt_size;
+    PTR_TYPE(ptr) = _data(arr);
+    SIZE_TYPE(step) = _typesize(src);
 
-    while (sp != ep) {
-      (void)builtin_memcpy(ptr, GET_POINTER(src, sp), step);
+    while (start != end) {
+      (void)builtin_memcpy(ptr, _relative_data(src, start), step);
       ptr = (char *)ptr + step;
-      sp--;
+      start--;
     }
   }
 
   return (arr);
 }
 
-NONE_T(array_clear)(ARRAY_T(self)) {
-  RETURN_IF_FAIL(self);
+NONE_TYPE(array_clear)(ARRAY_TYPE(self)) {
+  HR_ABORT_IF(self == NULL);
 
-  if (self->_free) {
-    while (self->_nmemb--) {
-      self->_free(GET_POINTER(self, self->_nmemb));
+  if (_freefunc(self)) {
+    while (_size(self)--) {
+      _freefunc(self)(_relative_data(self, _size(self)));
     }
   }
 
-  self->_nmemb = 0;
+  _size(self) = 0;
 
-  IF_TRACING(self->_meta.n_bytes_in_use = 0);
+  IF_TRACED(self->_meta.n_bytes_in_use = 0);
 }
 
-NONE_T(array_kill)(ARRAY_T(self)) {
-  RETURN_IF_FAIL(self);
+NONE_TYPE(array_kill)(ARRAY_TYPE(self)) {
+  HR_ABORT_IF(self == NULL);
 
   array_clear(self);
   __array_allocator__._memory_free(self);
 }
 
-BOOL_T(array_adjust)(ARRAY_T(self), SIZE_T(n)) {
-  RETURN_VAL_IF_FAIL(self, false);
-  RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_ADD(self->_nmemb, n), false);
-  RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_MUL(self->_cap, 2), false);
-  RETURN_VAL_IF_FAIL(SIZE_T_SAFE_TO_MUL(self->_nmemb + n, self->_elt_size),
-                     false);
+BOOL_TYPE(array_adjust)(ARRAY_TYPE(self), SIZE_TYPE(n)) {
+  HR_ABORT_IF(self == NULL);
+  HR_ABORT_IF(SIZE_T_SAFE_TO_MUL(_capacity(self), 2) == false);
+  HR_ABORT_IF(SIZE_T_SAFE_TO_ADD(_size(self), n) == false);
+  HR_ABORT_IF(SIZE_T_SAFE_TO_MUL(_size(self) + n, _typesize(self)) == false);
 
-  SIZE_T(new_size) = 0;
+  SIZE_TYPE(new_size) = 0;
 
-  n += self->_nmemb;
-  n *= self->_elt_size;
+  n += _size(self);
+  n *= _typesize(self);
 
-  if (likely(n < self->_cap)) {
+  if (likely(n < _capacity(self))) {
     return (true);
   }
 
-  if (unlikely(SETTLED(self))) {
+  if (unlikely(_settled(self))) {
     return (false);
   }
 
-  SIZE_T(cap_2x) = self->_cap * 2;
+  SIZE_TYPE(cap_2x) = _capacity(self) * 2;
 
-  if (cap_2x < 16) {
-    cap_2x = 16;
+  if (cap_2x < ARRAY_INITIAL_SIZE) {
+    cap_2x = ARRAY_INITIAL_SIZE;
   } else {
-    if (unlikely(cap_2x > SIZE_MAX))
+    if (unlikely(cap_2x > SIZE_TYPE_MAX))
       return (false);
   }
 
@@ -182,109 +186,115 @@ BOOL_T(array_adjust)(ARRAY_T(self), SIZE_T(n)) {
     new_size = cap_2x;
   }
 
-  PTR_T(ptr) = __array_allocator__._memory_realloc(self->_ptr, new_size);
+  PTR_TYPE(ptr) = __array_allocator__._memory_realloc(_data(self), new_size);
 
   if (unlikely(!ptr)) {
     return (false);
   }
 
-  self->_cap = new_size;
-  self->_ptr = ptr;
+  _data(self) = ptr;
+  _capacity(self) = new_size;
 
-  IF_TRACING(self->_meta.n_frees++);
-  IF_TRACING(self->_meta.n_allocs++);
-  IF_TRACING(self->_meta.n_bytes_allocd += new_size);
-  IF_TRACING(self->_meta.n_bytes_reachable = new_size);
-  IF_TRACING(self->_meta.trace[self->_meta.tidx].alloc_size = new_size);
-  IF_TRACING(self->_meta.trace[self->_meta.tidx].pointer = self->_ptr);
-  IF_TRACING((self->_meta.tidx)++);
-  IF_TRACING((self->_meta.tidx) %= META_TRACE_SIZE);
+  IF_TRACED(self->_meta.n_frees++);
+  IF_TRACED(self->_meta.n_allocs++);
+  IF_TRACED(self->_meta.n_bytes_allocd += new_size);
+  IF_TRACED(self->_meta.n_bytes_reachable = new_size);
+  IF_TRACED(self->_meta.trace[self->_meta.tidx].alloc_size = new_size);
+  IF_TRACED(self->_meta.trace[self->_meta.tidx].pointer = _data(self));
+  IF_TRACED((self->_meta.tidx)++);
+  IF_TRACED((self->_meta.tidx) %= META_TRACE_SIZE);
 
   return (true);
 }
 
-BOOL_T(array_push)(ARRAY_T(self), PTR_T(e)) {
-  RETURN_VAL_IF_FAIL(self, false);
+BOOL_TYPE(array_push)(ARRAY_TYPE(self), PTR_TYPE(e)) {
+  HR_ABORT_IF(self == NULL);
 
   if (unlikely(!array_adjust(self, 1))) {
     return (false);
   }
 
-  (void)builtin_memmove(GET_POINTER(self, self->_nmemb), e, self->_elt_size);
+  (void)builtin_memmove(_relative_data(self, _size(self)), e, _typesize(self));
 
-  ++self->_nmemb;
+  _size(self)++;
 
-  IF_TRACING(self->_meta.n_bytes_in_use += self->_elt_size);
+  IF_TRACED(self->_meta.n_bytes_in_use += _typesize(self));
 
   return (true);
 }
 
-NONE_T(array_pop)(ARRAY_T(self), PTR_T(into)) {
-  RETURN_IF_FAIL(self);
-  RETURN_IF_FAIL(self->_nmemb);
+NONE_TYPE(array_pop)(ARRAY_TYPE(self), PTR_TYPE(into)) {
+  HR_ABORT_IF(self == NULL);
+  HR_ABORT_IF(_size(self) == 0);
 
-  PTR_T(p) = GET_POINTER(self, --self->_nmemb);
+  _size(self)--;
+
+  PTR_TYPE(ptr) = _relative_data(self, _size(self));
 
   if (into) {
-    (void)builtin_memcpy(into, p, self->_elt_size);
+    (void)builtin_memcpy(into, ptr, _typesize(self));
   }
 
-  if (self->_free) {
-    self->_free(p);
+  if (_freefunc(self)) {
+    _freefunc(self)(ptr);
   }
 
-  IF_TRACING(self->_meta.n_bytes_in_use -= self->_elt_size);
+  IF_TRACED(self->_meta.n_bytes_in_use -= _typesize(self));
 }
 
-BOOL_T(array_pushf)(ARRAY_T(self), PTR_T(e)) {
+BOOL_TYPE(array_pushf)(ARRAY_TYPE(self), PTR_TYPE(e)) {
   return (array_insert(self, 0, e));
 }
 
-NONE_T(array_popf)(ARRAY_T(self), PTR_T(into)) {
-  RETURN_IF_FAIL(self);
+NONE_TYPE(array_popf)(ARRAY_TYPE(self), PTR_TYPE(into)) {
+  HR_ABORT_IF(self == NULL);
+  HR_ABORT_IF(_size(self) == 0);
 
   if (into) {
-    (void)builtin_memcpy(into, self->_ptr, self->_elt_size);
+    (void)builtin_memcpy(into, _data(self), _typesize(self));
   }
 
   array_evict(self, 0);
 }
 
-BOOL_T(array_insert)(ARRAY_T(self), SIZE_T(p), PTR_T(e)) {
-  RETURN_VAL_IF_FAIL(self, false);
-  RETURN_VAL_IF_FAIL(p <= self->_nmemb, false);
+BOOL_TYPE(array_insert)(ARRAY_TYPE(self), SIZE_TYPE(p), PTR_TYPE(e)) {
+  HR_ABORT_IF(self == false);
+  HR_ABORT_IF(p <= _size(self) == false);
 
   if (unlikely(!array_adjust(self, 1))) {
     return (false);
   }
 
-  if (!self->_nmemb || p == self->_nmemb) {
+  if (!_size(self) || p == _size(self)) {
     goto skip;
   }
 
-  (void)builtin_memmove(GET_POINTER(self, p + 1), GET_POINTER(self, p),
-                        self->_nmemb * self->_elt_size - p * self->_elt_size);
+  (void)builtin_memmove(_relative_data(self, p + 1), _relative_data(self, p),
+                        _size(self) * _typesize(self) - p * _typesize(self));
 
 skip:
-  (void)builtin_memcpy(GET_POINTER(self, p), e, self->_elt_size);
-  ++self->_nmemb;
+  (void)builtin_memcpy(_relative_data(self, p), e, _typesize(self));
+  ++_size(self);
 
-  IF_TRACING(self->_meta.n_bytes_in_use += self->_elt_size);
+  IF_TRACED(self->_meta.n_bytes_in_use += _typesize(self));
 
   return (true);
 }
 
-NONE_T(array_tipex)(ARRAY_T(self), SIZE_T(off), RDONLY_PTR_T(src), SIZE_T(n)) {
-  RETURN_IF_FAIL(self);
-  RETURN_IF_FAIL(src);
+NONE_TYPE(array_tipex)
+(ARRAY_TYPE(self), SIZE_TYPE(off), RDONLY_PTR_TYPE(src), SIZE_TYPE(n)) {
+  HR_ABORT_IF(self == NULL);
+  HR_ABORT_IF(src == NULL);
 
-  (void)builtin_memmove((char *)self->_ptr + off, src, n);
+  (void)builtin_memmove((char *)_data(self) + off, src, n);
 }
 
-BOOL_T(array_inject)(ARRAY_T(self), SIZE_T(p), RDONLY_PTR_T(src), SIZE_T(n)) {
-  RETURN_VAL_IF_FAIL(self, false);
-  RETURN_VAL_IF_FAIL(src, false);
-  RETURN_VAL_IF_FAIL(p <= self->_nmemb, false);
+BOOL_TYPE(array_inject)
+(ARRAY_TYPE(self), SIZE_TYPE(p), RDONLY_PTR_TYPE(src), SIZE_TYPE(n)) {
+  HR_ABORT_IF(self == NULL);
+  HR_ABORT_IF(src == NULL);
+  HR_ABORT_IF(p > _size(self));
+  HR_ABORT_IF(SIZE_T_SAFE_TO_ADD(p, n) == false);
 
   if (unlikely(!array_adjust(self, n))) {
     return (false);
@@ -294,243 +304,255 @@ BOOL_T(array_inject)(ARRAY_T(self), SIZE_T(p), RDONLY_PTR_T(src), SIZE_T(n)) {
     return (true);
   }
 
-  if (!self->_nmemb || p == self->_nmemb) {
+  if (!_size(self) || p == _size(self)) {
     goto skip_moving;
   }
 
-  (void)builtin_memmove(GET_POINTER(self, p + n), GET_POINTER(self, p),
-                        self->_elt_size * (self->_nmemb - p));
+  (void)builtin_memmove(_relative_data(self, p + n), _relative_data(self, p),
+                        _typesize(self) * (_size(self) - p));
 
 skip_moving:
-  (void)builtin_memmove(GET_POINTER(self, p), src, self->_elt_size * n);
-  self->_nmemb += n;
+  (void)builtin_memmove(_relative_data(self, p), src, _typesize(self) * n);
+  _size(self) += n;
 
-  IF_TRACING(self->_meta.n_bytes_in_use += (n * self->_elt_size));
+  IF_TRACED(self->_meta.n_bytes_in_use += (n * _typesize(self)));
 
   return (true);
 }
 
-BOOL_T(array_append)(ARRAY_T(self), RDONLY_PTR_T(src), SIZE_T(n)) {
-  RETURN_VAL_IF_FAIL(self, false);
-  RETURN_VAL_IF_FAIL(src, false);
+BOOL_TYPE(array_append)(ARRAY_TYPE(self), RDONLY_PTR_TYPE(src), SIZE_TYPE(n)) {
+  HR_ABORT_IF(self == NULL);
+  HR_ABORT_IF(src == NULL);
 
   if (unlikely(!array_adjust(self, n))) {
     return (false);
   }
 
-  (void)builtin_memmove(GET_POINTER(self, self->_nmemb), src,
-                        self->_elt_size * n);
+  (void)builtin_memmove(_relative_data(self, _size(self)), src,
+                        _typesize(self) * n);
 
-  self->_nmemb += n;
+  _size(self) += n;
 
-  IF_TRACING(self->_meta.n_bytes_in_use += (n * self->_elt_size));
+  IF_TRACED(self->_meta.n_bytes_in_use += (n * _typesize(self)));
 
   return (true);
 }
 
-RDONLY_PTR_T(array_at)(RDONLY_ARRAY_T(self), SIZE_T(p)) {
-  RETURN_VAL_IF_FAIL(self, NULL);
-  RETURN_VAL_IF_FAIL(self->_nmemb > p, NULL);
+RDONLY_PTR_TYPE(array_at)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p)) {
+  HR_ABORT_IF(self == NULL);
+  HR_ABORT_IF(p >= _size(self));
 
-  if (unlikely(p >= self->_nmemb)) {
+  if (unlikely(p >= _size(self))) {
     return (NULL);
   }
 
-  return (GET_POINTER(self, p));
+  return (_relative_data(self, p));
 }
 
-RDONLY_PTR_T(array_unsafe_at)(RDONLY_ARRAY_T(self), SIZE_T(p)) {
-  return (GET_POINTER(self, p));
+RDONLY_PTR_TYPE(array_unsafe_at)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p)) {
+  return (_relative_data(self, p));
 }
 
-PTR_T(array_access)(RDONLY_ARRAY_T(self), SIZE_T(p)) {
-  RETURN_VAL_IF_FAIL(self, NULL);
-  RETURN_VAL_IF_FAIL(self->_nmemb > p, NULL);
+PTR_TYPE(array_access)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p)) {
+  HR_ABORT_IF(self == NULL);
+  HR_ABORT_IF(_size(self) <= p);
 
-  if (unlikely(p >= self->_nmemb)) {
+  if (unlikely(p >= _size(self))) {
     return (NULL);
   }
 
-  return (GET_POINTER(self, p));
+  return (_relative_data(self, p));
 }
 
-PTR_T(array_unsafe_access)(RDONLY_ARRAY_T(self), SIZE_T(p)) {
-  return (GET_POINTER(self, p));
+PTR_TYPE(array_unsafe_access)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p)) {
+  return (_relative_data(self, p));
 }
 
-NONE_T(array_evict)(ARRAY_T(self), SIZE_T(p)) {
-  RETURN_IF_FAIL(self);
-  RETURN_IF_FAIL(p < self->_nmemb);
+NONE_TYPE(array_evict)(ARRAY_TYPE(self), SIZE_TYPE(p)) {
+  HR_ABORT_IF(self == NULL);
+  HR_ABORT_IF(p >= _size(self));
 
-  SIZE_T(__n) = (self->_nmemb - p) * self->_elt_size;
+  SIZE_TYPE(n) = (_size(self) - p) * _typesize(self);
 
-  if (self->_free) {
-    self->_free(GET_POINTER(self, p));
+  if (_freefunc(self)) {
+    _freefunc(self)(_relative_data(self, p));
   }
 
-  if (p <= --self->_nmemb) {
-    (void)builtin_memmove(GET_POINTER(self, p), GET_POINTER(self, p + 1),
-                          __n - self->_elt_size);
+  _size(self)--;
+
+  if (p <= _size(self)) {
+    (void)builtin_memmove(_relative_data(self, p), _relative_data(self, p + 1),
+                          n - _typesize(self));
   }
 
-  IF_TRACING(self->_meta.n_bytes_in_use -= self->_elt_size);
+  IF_TRACED(self->_meta.n_bytes_in_use -= _typesize(self));
 }
 
-NONE_T(array_wipe)(ARRAY_T(self), SIZE_T(sp), SIZE_T(ep)) {
-  RETURN_IF_FAIL(self);
-  RETURN_IF_FAIL(sp < ep);
-  RETURN_IF_FAIL(ep - sp <= self->_nmemb);
+NONE_TYPE(array_wipe)(ARRAY_TYPE(self), SIZE_TYPE(start), SIZE_TYPE(end)) {
+  HR_ABORT_IF(self == NULL);
+  HR_ABORT_IF(SIZE_T_SAFE_TO_SUB(end, start) == false);
+  HR_ABORT_IF(end - start > _size(self));
 
-  SIZE_T(__n) = ep - sp;
+  SIZE_TYPE(n) = end - start;
 
-  if (self->_free) {
+  if (_freefunc(self)) {
     size_t i = 0;
-  
-    while (i < __n) {
-      self->_free(GET_POINTER(self, i++));
+
+    while (i < n) {
+      _freefunc(self)(_relative_data(self, i));
+      i++;
     }
   }
 
-  (void)builtin_memmove(GET_POINTER(self, sp), GET_POINTER(self, ep),
-                        (self->_nmemb - sp - __n) * self->_elt_size);
+  (void)builtin_memmove(_relative_data(self, start), _relative_data(self, end),
+                        (_size(self) - start - n) * _typesize(self));
 
-  self->_nmemb -= __n;
+  _size(self) -= n;
 
-  IF_TRACING(self->_meta.n_bytes_in_use -= (__n * self->_elt_size));
+  IF_TRACED(self->_meta.n_bytes_in_use -= (n * _typesize(self)));
 }
 
-NONE_T(array_swap_elems)(ARRAY_T(self), SIZE_T(a), SIZE_T(b)) {
-  RETURN_IF_FAIL(self);
-  RETURN_IF_FAIL(a < self->_nmemb);
-  RETURN_IF_FAIL(b < self->_nmemb);
+NONE_TYPE(array_swap_elems)(ARRAY_TYPE(self), SIZE_TYPE(a), SIZE_TYPE(b)) {
+  HR_ABORT_IF(self == NULL);
+  HR_ABORT_IF(a >= _size(self));
+  HR_ABORT_IF(b >= _size(self));
 
-  SIZE_T(__n) = self->_elt_size;
+  SIZE_TYPE(n) = _typesize(self);
 
-  char *p = GET_POINTER(self, a);
-  char *q = GET_POINTER(self, b);
+  char *p = _relative_data(self, a);
+  char *q = _relative_data(self, b);
 
-  for (; __n--; ++p, ++q) {
+  for (; n--; ++p, ++q) {
     *p ^= *q;
     *q ^= *p;
     *p ^= *q;
   }
 }
 
-PTR_T(array_head)(RDONLY_ARRAY_T(self)) { return (array_access(self, 0)); }
+PTR_TYPE(array_head)(RDONLY_ARRAY_TYPE(self)) {
+  return (array_access(self, 0));
+}
 
-PTR_T(array_tail)(RDONLY_ARRAY_T(self)) {
-  RETURN_VAL_IF_FAIL(self, NULL);
+PTR_TYPE(array_tail)(RDONLY_ARRAY_TYPE(self)) {
+  HR_ABORT_IF(self == NULL);
 
-  if (!self->_nmemb) {
-    return (NULL);
+  if (likely(_size(self))) {
+    return (array_access(self, _size(self) - 1));
   }
 
-  return (array_access(self, self->_nmemb - 1));
+  return (NULL);
 }
 
-SIZE_T(array_size)(RDONLY_ARRAY_T(self)) {
-  RETURN_VAL_IF_FAIL(self, 0);
+SIZE_TYPE(array_size)(RDONLY_ARRAY_TYPE(self)) {
+  HR_ABORT_IF(self == NULL);
 
-  return (self->_nmemb);
+  return (_size(self));
 }
 
-PTR_T(array_data)(RDONLY_ARRAY_T(self)) { return array_head(self); }
+SIZE_TYPE(array_sizeof)(RDONLY_ARRAY_TYPE(self)) {
+  HR_ABORT_IF(self == NULL);
 
-PTR_T(array_uninitialized_data)(RDONLY_ARRAY_T(self)) {
-  RETURN_VAL_IF_FAIL(self, NULL);
-  RETURN_VAL_IF_FAIL(self->_ptr, NULL);
-
-  return (array_unsafe_access(self, self->_nmemb));
+  return (_size(self) * _typesize(self));
 }
 
-SIZE_T(array_uninitialized_size)(RDONLY_ARRAY_T(self)) {
-  RETURN_VAL_IF_FAIL(self, 0);
+PTR_TYPE(array_data)(RDONLY_ARRAY_TYPE(self)) { return array_head(self); }
 
-  SIZE_T(size_in_bytes) = self->_cap - self->_nmemb * self->_elt_size;
+PTR_TYPE(array_uninitialized_data)(RDONLY_ARRAY_TYPE(self)) {
+  HR_ABORT_IF(self == NULL);
+  HR_ABORT_IF(_data(self) == NULL);
+
+  return (array_unsafe_access(self, _size(self)));
+}
+
+SIZE_TYPE(array_uninitialized_size)(RDONLY_ARRAY_TYPE(self)) {
+  HR_ABORT_IF(self == NULL);
+  HR_ABORT_IF(SIZE_T_SAFE_TO_SUB(_capacity(self), array_sizeof(self)) == false);
+
+  SIZE_TYPE(size_in_bytes) = _capacity(self) - array_sizeof(self);
 
   if (size_in_bytes) {
-    size_in_bytes /= self->_elt_size;
+    size_in_bytes /= _typesize(self);
   }
 
   return (size_in_bytes);
 }
 
-SIZE_T(array_cap)(RDONLY_ARRAY_T(self)) {
-  RETURN_VAL_IF_FAIL(self, 0);
+SIZE_TYPE(array_cap)(RDONLY_ARRAY_TYPE(self)) {
+  HR_ABORT_IF(self == false);
 
-  return (self->_cap);
+  return (_capacity(self));
 }
 
-BOOL_T(array_append_from_capacity)(ARRAY_T(self), SIZE_T(n)) {
-  RETURN_VAL_IF_FAIL(self, false);
+BOOL_TYPE(array_append_from_capacity)(ARRAY_TYPE(self), SIZE_TYPE(n)) {
+  HR_ABORT_IF(self == NULL);
 
   if (n > array_uninitialized_size(self)) {
     return (false);
   }
 
-  self->_nmemb += n;
+  _size(self) += n;
 
-  IF_TRACING(self->_meta.n_bytes_in_use += n);
+  IF_TRACED(self->_meta.n_bytes_in_use += n);
 
   return (true);
 }
 
-BOOL_T(array_slimcheck)(ARRAY_T(self)) {
-  RETURN_VAL_IF_FAIL(self, false);
+BOOL_TYPE(array_slimcheck)(ARRAY_TYPE(self)) {
+  HR_ABORT_IF(self == NULL);
 
-  if (unlikely(SETTLED(self))) {
+  if (unlikely(_settled(self))) {
     return (false);
   }
 
-  if (self->_cap) {
-    SIZE_T(size) = self->_elt_size * self->_nmemb;
+  if (likely(_capacity(self))) {
+    SIZE_TYPE(size) = _typesize(self) * _size(self);
 
-    if (size < self->_cap / 2) {
-      PTR_T(ptr) = __array_allocator__._memory_realloc(self->_ptr, size);
+    if (size < _capacity(self) / 2) {
+      PTR_TYPE(ptr) = __array_allocator__._memory_realloc(_data(self), size);
 
       if (unlikely(!ptr)) {
         return (false);
       }
 
-      self->_ptr = ptr;
-      self->_cap = size;
+      _data(self) = ptr;
+      _capacity(self) = size;
 
-      IF_TRACING(self->_meta.n_frees++);
-      IF_TRACING(self->_meta.n_allocs++);
-      IF_TRACING(self->_meta.n_bytes_allocd += size);
-      IF_TRACING(self->_meta.n_bytes_reachable = size);
-      IF_TRACING(self->_meta.trace[self->_meta.tidx].alloc_size = size);
-      IF_TRACING(self->_meta.trace[self->_meta.tidx].pointer = self->_ptr);
-      IF_TRACING((self->_meta.tidx)++);
-      IF_TRACING((self->_meta.tidx) %= META_TRACE_SIZE);
+      IF_TRACED(self->_meta.n_frees++);
+      IF_TRACED(self->_meta.n_allocs++);
+      IF_TRACED(self->_meta.n_bytes_allocd += size);
+      IF_TRACED(self->_meta.n_bytes_reachable = size);
+      IF_TRACED(self->_meta.trace[self->_meta.tidx].alloc_size = size);
+      IF_TRACED(self->_meta.trace[self->_meta.tidx].pointer = _data(self));
+      IF_TRACED((self->_meta.tidx)++);
+      IF_TRACED((self->_meta.tidx) %= META_TRACE_SIZE);
     }
   }
 
   return (true);
 }
 
-NONE_T(array_settle)(ARRAY_T(self)) {
-  RETURN_IF_FAIL(self);
+NONE_TYPE(array_settle)(ARRAY_TYPE(self)) {
+  HR_ABORT_IF(self == NULL);
 
-  self->settled = true;
+  _settled(self) = true;
 }
 
-NONE_T(array_unsettle)(ARRAY_T(self)) {
-  RETURN_IF_FAIL(self);
+NONE_TYPE(array_unsettle)(ARRAY_TYPE(self)) {
+  HR_ABORT_IF(self == NULL);
 
-  self->settled = false;
+  _settled(self) = false;
 }
 
-BOOL_T(array_is_settled)(RDONLY_ARRAY_T(self)) {
-  RETURN_VAL_IF_FAIL(self, false);
+BOOL_TYPE(array_is_settled)(RDONLY_ARRAY_TYPE(self)) {
+  HR_ABORT_IF(self == NULL);
 
-  return (self->settled);
+  return (_settled(self));
 }
 
-NONE_T(array_trace)(RDONLY_ARRAY_T(self)) {
-  RETURN_IF_FAIL(self);
+NONE_TYPE(array_trace)(RDONLY_ARRAY_TYPE(self)) {
+  HR_ABORT_IF(self == NULL);
 
-#if defined (DISABLE_STATISTICS)
+#if defined(DISABLE_STATISTICS)
   (void)self;
 #else
 
@@ -550,8 +572,8 @@ NONE_T(array_trace)(RDONLY_ARRAY_T(self)) {
   }
 
   (void)fprintf(stderr, "\nARRAY SUMMARY:\n");
-  (void)fprintf(stderr, " - %ld elements of %ld bytes:\n", self->_nmemb,
-                self->_elt_size);
+  (void)fprintf(stderr, " - %ld elements of %ld bytes:\n", _size(self),
+                _typesize(self));
   (void)fprintf(
       stderr, "    - allocations: %ld bytes in %ld blocks (%ld freed)\n",
       self->_meta.n_bytes_allocd, self->_meta.n_allocs, self->_meta.n_frees);
