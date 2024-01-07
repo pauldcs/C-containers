@@ -36,8 +36,8 @@ static inline BOOL_TYPE(array_init)(ARRAY_TYPE(*self), size_t size) {
 
 ARRAY_TYPE(array_create)
 (SIZE_TYPE(elt_size), SIZE_TYPE(n), void (*free)(void *)) {
-  HR_ABORT_IF(elt_size == 0);
-  HR_ABORT_IF(SIZE_T_SAFE_TO_MUL(elt_size, n) == false);
+  HR_COMPLAIN_IF(elt_size == 0);
+  HR_COMPLAIN_IF(SIZE_T_SAFE_TO_MUL(elt_size, n) == false);
 
   if (!n) {
     n = ARRAY_INITIAL_SIZE;
@@ -50,7 +50,6 @@ ARRAY_TYPE(array_create)
     _typesize(array) = elt_size;
     _capacity(array) = init_cap;
     _freefunc(array) = free;
-    _settled(array) = false;
   }
 
   IF_TRACED(array->_meta.n_allocs = 1);
@@ -64,13 +63,87 @@ ARRAY_TYPE(array_create)
   return (array);
 }
 
+ARRAY_TYPE(array_use_buffer)
+(PTR_TYPE(*buffer), SIZE_TYPE(bufsize), SIZE_TYPE(elt_size), SIZE_TYPE(n),
+ void (*_free)(void *)) {
+  HR_COMPLAIN_IF(elt_size == 0);
+  HR_COMPLAIN_IF(SIZE_T_SAFE_TO_MUL(elt_size, n) == false);
+
+  ARRAY_TYPE(self) = NULL;
+
+  self = __array_allocator__._memory_alloc(sizeof(*self));
+
+  if (likely(self)) {
+    (void)builtin_memset(self, 0x00, sizeof(array_t));
+    _capacity(self) = bufsize;
+    _size(self) = n;
+    _typesize(self) = elt_size;
+    _data(self) = buffer;
+    _freefunc(self) = _free;
+  }
+
+  IF_TRACED(self->_meta.n_bytes_allocd = bufsize);
+  IF_TRACED(self->_meta.n_bytes_reachable = bufsize);
+  IF_TRACED(self->_meta.n_bytes_in_use = n * elt_size);
+
+  return (self);
+}
+
+ARRAY_TYPE(array_use_settled_buffer)
+(PTR_TYPE(*buffer), SIZE_TYPE(bufsize), SIZE_TYPE(elt_size), SIZE_TYPE(n),
+ void (*_free)(void *)) {
+
+  ARRAY_TYPE(self) = array_use_buffer(buffer, bufsize, elt_size, n, _free);
+  if (likely(self)) {
+    array_settle(self);
+  }
+
+  return (self);
+}
+
+ARRAY_TYPE(array_filter)
+(RDONLY_ARRAY_TYPE(self), bool (*callback)(RDONLY_ARRAY_TYPE(self))) {
+  HR_COMPLAIN_IF(self == NULL);
+  HR_COMPLAIN_IF(callback == NULL);
+
+  ARRAY_TYPE(array) = NULL;
+
+  if (unlikely(!array_init(&array, ARRAY_INITIAL_SIZE))) {
+    return (NULL);
+  }
+
+  _capacity(array) = ARRAY_INITIAL_SIZE;
+  _typesize(array) = _typesize(self);
+  _freefunc(array) = _freefunc(self);
+
+  SIZE_TYPE(size) = array_size(self);
+  SIZE_TYPE(i) = 0;
+
+  while (i < size) {
+    RDONLY_ARRAY_TYPE(elem) = array_at(self, i);
+    if (!elem)
+      goto error;
+
+    if (callback(elem) && !array_push(array, elem))
+      goto error;
+
+    i++;
+  }
+
+  return (array);
+
+error:
+  array_kill(array);
+  return (NULL);
+}
+
 PTR_TYPE(array_extract)
 (RDONLY_ARRAY_TYPE(src), SIZE_TYPE(start), SIZE_TYPE(end)) {
-  HR_ABORT_IF(src == NULL);
-  HR_ABORT_IF(SIZE_T_SAFE_TO_SUB(end, start) == false);
-  HR_ABORT_IF(SIZE_T_SAFE_TO_MUL((end - start), _typesize(src)) == false);
-  HR_ABORT_IF(SIZE_T_SAFE_TO_SUB(_size(src), start) == false);
-  HR_ABORT_IF((_size(src) - start) < (end - start));
+  HR_COMPLAIN_IF(src == NULL);
+  HR_COMPLAIN_IF(SIZE_T_SAFE_TO_SUB(end, start) == false);
+  HR_COMPLAIN_IF(SIZE_T_SAFE_TO_MUL((end - start), _typesize(src)) == false);
+  HR_COMPLAIN_IF(SIZE_T_SAFE_TO_SUB(_size(src), start) == false);
+  HR_COMPLAIN_IF((_size(src) - start) < (end - start));
 
   PTR_TYPE(ptr) =
       __array_allocator__._memory_alloc((end - start) * _typesize(src));
@@ -85,9 +158,9 @@ PTR_TYPE(array_extract)
 
 ARRAY_TYPE(array_pull)
 (RDONLY_ARRAY_TYPE(src), SSIZE_TYPE(start), SSIZE_TYPE(end)) {
-  HR_ABORT_IF(src == NULL);
-  HR_ABORT_IF(_size(src) <= ABS(start));
-  HR_ABORT_IF(_size(src) <= ABS(end));
+  HR_COMPLAIN_IF(src == NULL);
+  HR_COMPLAIN_IF(_size(src) <= ABS(start));
+  HR_COMPLAIN_IF(_size(src) <= ABS(end));
 
   ARRAY_TYPE(arr) = NULL;
 
@@ -132,7 +205,7 @@ ARRAY_TYPE(array_pull)
 }
 
 NONE_TYPE(array_clear)(ARRAY_TYPE(self)) {
-  HR_ABORT_IF(self == NULL);
+  HR_COMPLAIN_IF(self == NULL);
 
   if (_freefunc(self)) {
     while (_size(self)--) {
@@ -146,17 +219,17 @@ NONE_TYPE(array_clear)(ARRAY_TYPE(self)) {
 }
 
 NONE_TYPE(array_kill)(ARRAY_TYPE(self)) {
-  HR_ABORT_IF(self == NULL);
+  HR_COMPLAIN_IF(self == NULL);
 
   array_clear(self);
   __array_allocator__._memory_free(self);
 }
 
 BOOL_TYPE(array_adjust)(ARRAY_TYPE(self), SIZE_TYPE(n)) {
-  HR_ABORT_IF(self == NULL);
-  HR_ABORT_IF(SIZE_T_SAFE_TO_MUL(_capacity(self), 2) == false);
-  HR_ABORT_IF(SIZE_T_SAFE_TO_ADD(_size(self), n) == false);
-  HR_ABORT_IF(SIZE_T_SAFE_TO_MUL(_size(self) + n, _typesize(self)) == false);
+  HR_COMPLAIN_IF(self == NULL);
+  HR_COMPLAIN_IF(SIZE_T_SAFE_TO_MUL(_capacity(self), 2) == false);
+  HR_COMPLAIN_IF(SIZE_T_SAFE_TO_ADD(_size(self), n) == false);
+  HR_COMPLAIN_IF(SIZE_T_SAFE_TO_MUL(_size(self) + n, _typesize(self)) == false);
 
   SIZE_TYPE(new_size) = 0;
 
@@ -207,8 +280,8 @@ BOOL_TYPE(array_adjust)(ARRAY_TYPE(self), SIZE_TYPE(n)) {
   return (true);
 }
 
-BOOL_TYPE(array_push)(ARRAY_TYPE(self), PTR_TYPE(e)) {
-  HR_ABORT_IF(self == NULL);
+BOOL_TYPE(array_push)(ARRAY_TYPE(self), RDONLY_PTR_TYPE(e)) {
+  HR_COMPLAIN_IF(self == NULL);
 
   if (unlikely(!array_adjust(self, 1))) {
     return (false);
@@ -224,8 +297,8 @@ BOOL_TYPE(array_push)(ARRAY_TYPE(self), PTR_TYPE(e)) {
 }
 
 NONE_TYPE(array_pop)(ARRAY_TYPE(self), PTR_TYPE(into)) {
-  HR_ABORT_IF(self == NULL);
-  HR_ABORT_IF(_size(self) == 0);
+  HR_COMPLAIN_IF(self == NULL);
+  HR_COMPLAIN_IF(_size(self) == 0);
 
   _size(self)--;
 
@@ -247,8 +320,8 @@ BOOL_TYPE(array_pushf)(ARRAY_TYPE(self), PTR_TYPE(e)) {
 }
 
 NONE_TYPE(array_popf)(ARRAY_TYPE(self), PTR_TYPE(into)) {
-  HR_ABORT_IF(self == NULL);
-  HR_ABORT_IF(_size(self) == 0);
+  HR_COMPLAIN_IF(self == NULL);
+  HR_COMPLAIN_IF(_size(self) == 0);
 
   if (into) {
     (void)builtin_memcpy(into, _data(self), _typesize(self));
@@ -258,8 +331,8 @@ NONE_TYPE(array_popf)(ARRAY_TYPE(self), PTR_TYPE(into)) {
 }
 
 BOOL_TYPE(array_insert)(ARRAY_TYPE(self), SIZE_TYPE(p), PTR_TYPE(e)) {
-  HR_ABORT_IF(self == false);
-  HR_ABORT_IF(p <= _size(self) == false);
+  HR_COMPLAIN_IF(self == false);
+  HR_COMPLAIN_IF(p <= _size(self) == false);
 
   if (unlikely(!array_adjust(self, 1))) {
     return (false);
@@ -283,18 +356,18 @@ skip:
 
 NONE_TYPE(array_tipex)
 (ARRAY_TYPE(self), SIZE_TYPE(off), RDONLY_PTR_TYPE(src), SIZE_TYPE(n)) {
-  HR_ABORT_IF(self == NULL);
-  HR_ABORT_IF(src == NULL);
+  HR_COMPLAIN_IF(self == NULL);
+  HR_COMPLAIN_IF(src == NULL);
 
   (void)builtin_memmove((char *)_data(self) + off, src, n);
 }
 
 BOOL_TYPE(array_inject)
 (ARRAY_TYPE(self), SIZE_TYPE(p), RDONLY_PTR_TYPE(src), SIZE_TYPE(n)) {
-  HR_ABORT_IF(self == NULL);
-  HR_ABORT_IF(src == NULL);
-  HR_ABORT_IF(p > _size(self));
-  HR_ABORT_IF(SIZE_T_SAFE_TO_ADD(p, n) == false);
+  HR_COMPLAIN_IF(self == NULL);
+  HR_COMPLAIN_IF(src == NULL);
+  HR_COMPLAIN_IF(p > _size(self));
+  HR_COMPLAIN_IF(SIZE_T_SAFE_TO_ADD(p, n) == false);
 
   if (unlikely(!array_adjust(self, n))) {
     return (false);
@@ -321,8 +394,8 @@ skip_moving:
 }
 
 BOOL_TYPE(array_append)(ARRAY_TYPE(self), RDONLY_PTR_TYPE(src), SIZE_TYPE(n)) {
-  HR_ABORT_IF(self == NULL);
-  HR_ABORT_IF(src == NULL);
+  HR_COMPLAIN_IF(self == NULL);
+  HR_COMPLAIN_IF(src == NULL);
 
   if (unlikely(!array_adjust(self, n))) {
     return (false);
@@ -338,9 +411,9 @@ BOOL_TYPE(array_append)(ARRAY_TYPE(self), RDONLY_PTR_TYPE(src), SIZE_TYPE(n)) {
   return (true);
 }
 
-RDONLY_PTR_TYPE(array_at)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p)) {
-  HR_ABORT_IF(self == NULL);
-  HR_ABORT_IF(p >= _size(self));
+__attr_pure RDONLY_PTR_TYPE(array_at)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p)) {
+  HR_COMPLAIN_IF(self == NULL);
+  HR_COMPLAIN_IF(p >= _size(self));
 
   if (unlikely(p >= _size(self))) {
     return (NULL);
@@ -349,13 +422,14 @@ RDONLY_PTR_TYPE(array_at)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p)) {
   return (_relative_data(self, p));
 }
 
-RDONLY_PTR_TYPE(array_unsafe_at)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p)) {
+__attr_pure RDONLY_PTR_TYPE(array_unsafe_at)(RDONLY_ARRAY_TYPE(self),
+                                             SIZE_TYPE(p)) {
   return (_relative_data(self, p));
 }
 
-PTR_TYPE(array_access)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p)) {
-  HR_ABORT_IF(self == NULL);
-  HR_ABORT_IF(_size(self) <= p);
+__attr_pure PTR_TYPE(array_access)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p)) {
+  HR_COMPLAIN_IF(self == NULL);
+  HR_COMPLAIN_IF(_size(self) <= p);
 
   if (unlikely(p >= _size(self))) {
     return (NULL);
@@ -364,13 +438,14 @@ PTR_TYPE(array_access)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p)) {
   return (_relative_data(self, p));
 }
 
-PTR_TYPE(array_unsafe_access)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p)) {
+__attr_pure PTR_TYPE(array_unsafe_access)(RDONLY_ARRAY_TYPE(self),
+                                          SIZE_TYPE(p)) {
   return (_relative_data(self, p));
 }
 
 NONE_TYPE(array_evict)(ARRAY_TYPE(self), SIZE_TYPE(p)) {
-  HR_ABORT_IF(self == NULL);
-  HR_ABORT_IF(p >= _size(self));
+  HR_COMPLAIN_IF(self == NULL);
+  HR_COMPLAIN_IF(p >= _size(self));
 
   SIZE_TYPE(n) = (_size(self) - p) * _typesize(self);
 
@@ -389,9 +464,9 @@ NONE_TYPE(array_evict)(ARRAY_TYPE(self), SIZE_TYPE(p)) {
 }
 
 NONE_TYPE(array_wipe)(ARRAY_TYPE(self), SIZE_TYPE(start), SIZE_TYPE(end)) {
-  HR_ABORT_IF(self == NULL);
-  HR_ABORT_IF(SIZE_T_SAFE_TO_SUB(end, start) == false);
-  HR_ABORT_IF(end - start > _size(self));
+  HR_COMPLAIN_IF(self == NULL);
+  HR_COMPLAIN_IF(SIZE_T_SAFE_TO_SUB(end, start) == false);
+  HR_COMPLAIN_IF(end - start > _size(self));
 
   SIZE_TYPE(n) = end - start;
 
@@ -413,9 +488,9 @@ NONE_TYPE(array_wipe)(ARRAY_TYPE(self), SIZE_TYPE(start), SIZE_TYPE(end)) {
 }
 
 NONE_TYPE(array_swap_elems)(ARRAY_TYPE(self), SIZE_TYPE(a), SIZE_TYPE(b)) {
-  HR_ABORT_IF(self == NULL);
-  HR_ABORT_IF(a >= _size(self));
-  HR_ABORT_IF(b >= _size(self));
+  HR_COMPLAIN_IF(self == NULL);
+  HR_COMPLAIN_IF(a >= _size(self));
+  HR_COMPLAIN_IF(b >= _size(self));
 
   SIZE_TYPE(n) = _typesize(self);
 
@@ -429,12 +504,12 @@ NONE_TYPE(array_swap_elems)(ARRAY_TYPE(self), SIZE_TYPE(a), SIZE_TYPE(b)) {
   }
 }
 
-PTR_TYPE(array_head)(RDONLY_ARRAY_TYPE(self)) {
+__attr_pure PTR_TYPE(array_head)(RDONLY_ARRAY_TYPE(self)) {
   return (array_access(self, 0));
 }
 
-PTR_TYPE(array_tail)(RDONLY_ARRAY_TYPE(self)) {
-  HR_ABORT_IF(self == NULL);
+__attr_pure PTR_TYPE(array_tail)(RDONLY_ARRAY_TYPE(self)) {
+  HR_COMPLAIN_IF(self == NULL);
 
   if (likely(_size(self))) {
     return (array_access(self, _size(self) - 1));
@@ -443,30 +518,33 @@ PTR_TYPE(array_tail)(RDONLY_ARRAY_TYPE(self)) {
   return (NULL);
 }
 
-SIZE_TYPE(array_size)(RDONLY_ARRAY_TYPE(self)) {
-  HR_ABORT_IF(self == NULL);
+__attr_pure SIZE_TYPE(array_size)(RDONLY_ARRAY_TYPE(self)) {
+  HR_COMPLAIN_IF(self == NULL);
 
   return (_size(self));
 }
 
-SIZE_TYPE(array_sizeof)(RDONLY_ARRAY_TYPE(self)) {
-  HR_ABORT_IF(self == NULL);
+__attr_pure SIZE_TYPE(array_sizeof)(RDONLY_ARRAY_TYPE(self)) {
+  HR_COMPLAIN_IF(self == NULL);
 
   return (_size(self) * _typesize(self));
 }
 
-PTR_TYPE(array_data)(RDONLY_ARRAY_TYPE(self)) { return array_head(self); }
+__attr_pure PTR_TYPE(array_data)(RDONLY_ARRAY_TYPE(self)) {
+  return array_head(self);
+}
 
-PTR_TYPE(array_uninitialized_data)(RDONLY_ARRAY_TYPE(self)) {
-  HR_ABORT_IF(self == NULL);
-  HR_ABORT_IF(_data(self) == NULL);
+__attr_pure PTR_TYPE(array_uninitialized_data)(RDONLY_ARRAY_TYPE(self)) {
+  HR_COMPLAIN_IF(self == NULL);
+  HR_COMPLAIN_IF(_data(self) == NULL);
 
   return (array_unsafe_access(self, _size(self)));
 }
 
-SIZE_TYPE(array_uninitialized_size)(RDONLY_ARRAY_TYPE(self)) {
-  HR_ABORT_IF(self == NULL);
-  HR_ABORT_IF(SIZE_T_SAFE_TO_SUB(_capacity(self), array_sizeof(self)) == false);
+__attr_pure SIZE_TYPE(array_uninitialized_size)(RDONLY_ARRAY_TYPE(self)) {
+  HR_COMPLAIN_IF(self == NULL);
+  HR_COMPLAIN_IF(SIZE_T_SAFE_TO_SUB(_capacity(self), array_sizeof(self)) ==
+                 false);
 
   SIZE_TYPE(size_in_bytes) = _capacity(self) - array_sizeof(self);
 
@@ -477,14 +555,14 @@ SIZE_TYPE(array_uninitialized_size)(RDONLY_ARRAY_TYPE(self)) {
   return (size_in_bytes);
 }
 
-SIZE_TYPE(array_cap)(RDONLY_ARRAY_TYPE(self)) {
-  HR_ABORT_IF(self == false);
+__attr_pure SIZE_TYPE(array_cap)(RDONLY_ARRAY_TYPE(self)) {
+  HR_COMPLAIN_IF(self == false);
 
   return (_capacity(self));
 }
 
 BOOL_TYPE(array_append_from_capacity)(ARRAY_TYPE(self), SIZE_TYPE(n)) {
-  HR_ABORT_IF(self == NULL);
+  HR_COMPLAIN_IF(self == NULL);
 
   if (n > array_uninitialized_size(self)) {
     return (false);
@@ -498,14 +576,14 @@ BOOL_TYPE(array_append_from_capacity)(ARRAY_TYPE(self), SIZE_TYPE(n)) {
 }
 
 BOOL_TYPE(array_slimcheck)(ARRAY_TYPE(self)) {
-  HR_ABORT_IF(self == NULL);
+  HR_COMPLAIN_IF(self == NULL);
 
   if (unlikely(_settled(self))) {
     return (false);
   }
 
   if (likely(_capacity(self))) {
-    SIZE_TYPE(size) = _typesize(self) * _size(self);
+    SIZE_TYPE(size) = array_sizeof(self);
 
     if (size < _capacity(self) / 2) {
       PTR_TYPE(ptr) = __array_allocator__._memory_realloc(_data(self), size);
@@ -532,25 +610,25 @@ BOOL_TYPE(array_slimcheck)(ARRAY_TYPE(self)) {
 }
 
 NONE_TYPE(array_settle)(ARRAY_TYPE(self)) {
-  HR_ABORT_IF(self == NULL);
+  HR_COMPLAIN_IF(self == NULL);
 
   _settled(self) = true;
 }
 
 NONE_TYPE(array_unsettle)(ARRAY_TYPE(self)) {
-  HR_ABORT_IF(self == NULL);
+  HR_COMPLAIN_IF(self == NULL);
 
   _settled(self) = false;
 }
 
-BOOL_TYPE(array_is_settled)(RDONLY_ARRAY_TYPE(self)) {
-  HR_ABORT_IF(self == NULL);
+__attr_pure BOOL_TYPE(array_is_settled)(RDONLY_ARRAY_TYPE(self)) {
+  HR_COMPLAIN_IF(self == NULL);
 
   return (_settled(self));
 }
 
-NONE_TYPE(array_trace)(RDONLY_ARRAY_TYPE(self)) {
-  HR_ABORT_IF(self == NULL);
+__attr_pure NONE_TYPE(array_trace)(RDONLY_ARRAY_TYPE(self)) {
+  HR_COMPLAIN_IF(self == NULL);
 
 #if defined(DISABLE_STATISTICS)
   (void)self;

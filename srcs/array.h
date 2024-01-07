@@ -15,12 +15,16 @@ typedef struct {
 extern array_allocator_t __array_allocator__;
 
 typedef struct {
-  void *_ptr;       /* data pointer */
-  size_t _nmemb;    /* size in use */
-  size_t _cap;      /* allocated memory (in bytes) */
-  size_t _elt_size; /* element size */
-  bool _settled;
-  void (*_free)(void *); /* element free function */
+  void *_ptr;       /* A pointer to the start of the buffer */
+  size_t _nmemb;    /* The number of elements in the buffer */
+  size_t _cap;      /* The size of the reserved memory block (in bytes) */
+  size_t _elt_size; /* The size of one element (in bytes) */
+
+  bool _settled; /* Once settled, any attempts to reallocate the buffer are
+                  * blocked so new pointers to the data are guaranteed to
+                  * stay valid until the array is freed, or unsettled. */
+
+  void (*_free)(void *); /* the element destructor function */
 
 #if defined(DISABLE_ARRAY_TRACING)
 #else
@@ -54,6 +58,18 @@ typedef struct {
 ARRAY_TYPE(array_create)
 (SIZE_TYPE(elt_size), SIZE_TYPE(n), void (*_free)(void *));
 
+/* Creates an array with 'buffer' as the data, if the buffer was not allocated
+ * through the same allocator as for the array, the behavior is undefined. */
+ARRAY_TYPE(array_use_buffer)
+(PTR_TYPE(*buffer), SIZE_TYPE(bufsize), SIZE_TYPE(elt_size), SIZE_TYPE(n),
+ void (*_free)(void *));
+
+/* Works the same as 'use_buffer' but directly sets the array as settled. This
+ * blocks potential reallocations and enables the safe use of static memory. */
+ARRAY_TYPE(array_use_settled_buffer)
+(PTR_TYPE(*buffer), SIZE_TYPE(bufsize), SIZE_TYPE(elt_size), SIZE_TYPE(n),
+ void (*_free)(void *));
+
 /* Reallocates the array if more than half of the current capacity is unused.
  * If the reallocation fails the array is untouched and the function
  * returns false.
@@ -72,33 +88,33 @@ NONE_TYPE(array_unsettle)(ARRAY_TYPE(self));
 
 /* Returns true if 'self' is marked as settled.
  */
-BOOL_TYPE(array_is_settled)(RDONLY_ARRAY_TYPE(self));
+__attr_pure BOOL_TYPE(array_is_settled)(RDONLY_ARRAY_TYPE(self));
 
 /* Returns the number of elements contained in the array.
  */
-SIZE_TYPE(array_size)(RDONLY_ARRAY_TYPE(self));
+__attr_pure SIZE_TYPE(array_size)(RDONLY_ARRAY_TYPE(self));
 
 /* Returns the number of bytes in use in the array.
  */
-SIZE_TYPE(array_sizeof)(RDONLY_ARRAY_TYPE(self));
+__attr_pure SIZE_TYPE(array_sizeof)(RDONLY_ARRAY_TYPE(self));
 
 /* Returns the number of bytes currently reserved by the array.
  */
-SIZE_TYPE(array_cap)(RDONLY_ARRAY_TYPE(self));
+__attr_pure SIZE_TYPE(array_cap)(RDONLY_ARRAY_TYPE(self));
 
 /* Pointer to the underlying element storage. For non-empty containers,
  * the returned pointer compares equal to the address of the first element.
  */
-PTR_TYPE(array_data)(RDONLY_ARRAY_TYPE(self));
+__attr_pure PTR_TYPE(array_data)(RDONLY_ARRAY_TYPE(self));
 
 /* Returns the number of elements that can fit in the buffer without
  * having to reallocate.
  */
-SIZE_TYPE(array_uninitialized_size)(RDONLY_ARRAY_TYPE(self));
+__attr_pure SIZE_TYPE(array_uninitialized_size)(RDONLY_ARRAY_TYPE(self));
 
 /* Pointer to the first uninitialized element in the buffer.
  */
-PTR_TYPE(array_uninitialized_data)(RDONLY_ARRAY_TYPE(self));
+__attr_pure PTR_TYPE(array_uninitialized_data)(RDONLY_ARRAY_TYPE(self));
 
 /* Returns the data contained in 'self' in between start -> end into a newly
  * allocated buffer.
@@ -131,7 +147,7 @@ NONE_TYPE(array_kill)(ARRAY_TYPE(self));
  * last element. The data pointed to by 'e' is copied (or moved) to the
  * new element.
  */
-BOOL_TYPE(array_push)(ARRAY_TYPE(self), PTR_TYPE(e));
+BOOL_TYPE(array_push)(ARRAY_TYPE(self), RDONLY_PTR_TYPE(e));
 
 /* Removes the last element of the array, effectively reducing
  * the container size by one.
@@ -171,17 +187,53 @@ BOOL_TYPE(array_inject)
  */
 BOOL_TYPE(array_append)(ARRAY_TYPE(self), RDONLY_PTR_TYPE(src), SIZE_TYPE(n));
 
+/* Creates a new array, filtered down to just the elements from 'self' that
+ * pass the test implemented by the callback.
+ */
+ARRAY_TYPE(array_filter)
+(RDONLY_ARRAY_TYPE(self), bool (*callback)(RDONLY_ARRAY_TYPE(self)));
+
+/* executes a provided function once for each array element.
+ */
+BOOL_TYPE(array_foreach)(ARRAY_TYPE(self), bool (*callback)(ARRAY_TYPE(self)));
+
+/* Returns the first element in 'self' that satisfies the callback.
+ * If no values satisfy the testing function, NULL is returned. */
+__attr_pure PTR_TYPE(array_find)(ARRAY_TYPE(self),
+                                 bool (*callback)(RDONLY_ARRAY_TYPE(self)));
+
+/* Behaves the same as 'find' except it returns an index (that can be used with
+ * 'at'), or -1 if no element was found.
+ */
+__attr_pure
+    SSIZE_TYPE(array_find_index)(ARRAY_TYPE(self),
+                                 bool (*callback)(RDONLY_ARRAY_TYPE(self)));
+
+/* Behaves the same as 'find' expect it starts the search from the end.
+ */
+__attr_pure PTR_TYPE(array_rfind)(ARRAY_TYPE(self),
+                                  bool (*callback)(RDONLY_ARRAY_TYPE(self)));
+
+/* Behaves the same as 'find' except it starts the search from the end and
+ * returns an index (that can be used with 'at'), or -1 if no element was found.
+ */
+__attr_pure
+    PTR_TYPE(array_rfind_index)(ARRAY_TYPE(self),
+                                bool (*callback)(RDONLY_ARRAY_TYPE(self)));
+
 /* Returns a pointer to the element at the specified position.
  */
-PTR_TYPE(array_access)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p));
-PTR_TYPE(array_unsafe_access)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p));
+__attr_pure PTR_TYPE(array_access)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p));
+__attr_pure PTR_TYPE(array_unsafe_access)(RDONLY_ARRAY_TYPE(self),
+                                          SIZE_TYPE(p));
 
-/* Identical to 'access', only this return a const pointer
+/* Identical to 'access', only this returns a const pointer.
  */
-RDONLY_PTR_TYPE(array_at)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p));
-RDONLY_PTR_TYPE(array_unsafe_at)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(pos));
+__attr_pure RDONLY_PTR_TYPE(array_at)(RDONLY_ARRAY_TYPE(self), SIZE_TYPE(p));
+__attr_pure RDONLY_PTR_TYPE(array_unsafe_at)(RDONLY_ARRAY_TYPE(self),
+                                             SIZE_TYPE(pos));
 
-/* Appends n elements from capacity. The application must have initialized
+/* Appends 'n' elements from capacity. The application must have initialized
  * the storage backing these elements otherwise the behavior is undefined.
  */
 BOOL_TYPE(array_append_from_capacity)(ARRAY_TYPE(self), SIZE_TYPE(n));
@@ -191,13 +243,13 @@ BOOL_TYPE(array_append_from_capacity)(ARRAY_TYPE(self), SIZE_TYPE(n));
  */
 NONE_TYPE(array_swap_elems)(ARRAY_TYPE(self), SIZE_TYPE(a), SIZE_TYPE(b));
 
-/* Removes all elements from the array within start - end
+/* Removes all elements from the array within start -> end
  * (which are ran through v->free), leaving the container with
  * a size of v->_nmemb - abs(start - end).
  */
 NONE_TYPE(array_wipe)(ARRAY_TYPE(self), SIZE_TYPE(start), SIZE_TYPE(end));
 
-/* Removes all the elements from the array.
+/* Removes all the elements from the array and the capacity remains unchanged.
  */
 NONE_TYPE(array_clear)(ARRAY_TYPE(self));
 
@@ -207,17 +259,17 @@ NONE_TYPE(array_clear)(ARRAY_TYPE(self));
 NONE_TYPE(array_evict)(ARRAY_TYPE(self), SIZE_TYPE(p));
 
 /* Adjusts the array capacity to be at least enough to
- * contain the current + n elements.
+ * contain the current + 'n' elements.
  */
 BOOL_TYPE(array_adjust)(ARRAY_TYPE(self), SIZE_TYPE(n));
 
 /* Returns a pointer to the first element in the array.
  */
-PTR_TYPE(array_head)(RDONLY_ARRAY_TYPE(self));
+__attr_pure PTR_TYPE(array_head)(RDONLY_ARRAY_TYPE(self));
 
 /* Returns a pointer to the last element in the array.
  */
-PTR_TYPE(array_tail)(RDONLY_ARRAY_TYPE(self));
+__attr_pure PTR_TYPE(array_tail)(RDONLY_ARRAY_TYPE(self));
 
 /* Dumps a trace of the array. If DISABLE_TRACING is defined
  * no data is collected at runtime.

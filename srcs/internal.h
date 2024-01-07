@@ -16,16 +16,18 @@
 #define META_TRACE_SIZE 10
 
 /* DEFINED TYPES */
-#define ARRAY_TYPE(__x) /*..........*/ array_t *__x
-#define BOOL_TYPE(__b) /*...........*/ bool __b
-#define RDONLY_ARRAY_TYPE(__a) /*...*/ const ARRAY_TYPE(__a)
-#define INDEX_TYPE(__i) /*..........*/ size_t __i
-#define PTR_TYPE(__p) /*............*/ void *__p
-#define RDONLY_PTR_TYPE(__p) /*.....*/ const PTR_TYPE(__p)
-#define NONE_TYPE(__x) /*...........*/ void __x
-#define SIZE_TYPE(__n) /*...........*/ size_t __n
-#define SSIZE_TYPE(__n) /*..........*/ int64_t __n
-#define SIZE_TYPE_MAX /*............*/ INT_MAX
+#define SIZE_TYPE(__n) size_t __n
+#define SSIZE_TYPE(__n) int64_t __n
+#define SIZE_TYPE_MAX INT_MAX
+#define SIZE_TYPE_MIN INT_MIN
+
+#define ARRAY_TYPE(__x) array_t *__x
+#define BOOL_TYPE(__b) bool __b
+#define RDONLY_ARRAY_TYPE(__a) const ARRAY_TYPE(__a)
+#define INDEX_TYPE(__i) size_t __i
+#define PTR_TYPE(__p) void *__p
+#define RDONLY_PTR_TYPE(__p) const PTR_TYPE(__p)
+#define NONE_TYPE(__x) void __x
 
 #define cut8_t const uint8_t
 #define ct8_t const char
@@ -134,7 +136,7 @@ typedef struct {
 #endif
 
 #if defined(DISABLE_HARDENED_RUNTIME)
-#define HR_ABORT_IF(expr)
+#define HR_COMPLAIN_IF(expr)
 #else
 #include <stdlib.h>
 #if defined(DISABLE_HARDENED_RUNTIME_LOGGING)
@@ -147,15 +149,24 @@ typedef struct {
                   __FILE__, __LINE__, #expr);                                  \
   } while (0)
 #endif /* defined(DISABLE_HARDENED_RUNTIME_LOGGING) */
-#define HR_ABORT_IF(expr)                                                      \
+#define HR_COMPLAIN_IF(expr)                                                   \
   do {                                                                         \
     if (expr) {                                                                \
       LOG_ERROR_MSG(expr);                                                     \
-      abort();                                                                 \
     };                                                                         \
   } while (0)
 
 #endif /* defined (DISABLE_HARDENED_RUNTIME) */
+
+#if defined __has_attribute
+#if __has_attribute(pure)
+#define __attr_pure __attribute__((pure))
+#else
+#define __attr_pure
+#endif
+#else
+#define __attr_pure
+#endif
 
 #define SAFE_TO_ADD(a, b, max) (a <= max - b)
 #define SAFE_TO_MUL(a, b, max) (b == 0 || a <= max / b)
