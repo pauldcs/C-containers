@@ -191,35 +191,35 @@ BOOL_TYPE(array_append)(ARRAY_TYPE(self), RDONLY_PTR_TYPE(src), SIZE_TYPE(n));
  * pass the test implemented by the callback.
  */
 ARRAY_TYPE(array_filter)
-(RDONLY_ARRAY_TYPE(self), bool (*callback)(RDONLY_ARRAY_TYPE(self)));
+(RDONLY_ARRAY_TYPE(self), bool (*callback)(RDONLY_PTR_TYPE(elem)));
 
 /* executes a provided function once for each array element.
  */
-BOOL_TYPE(array_foreach)(ARRAY_TYPE(self), bool (*callback)(ARRAY_TYPE(self)));
+BOOL_TYPE(array_foreach)(ARRAY_TYPE(self), bool (*callback)(PTR_TYPE(elem)));
 
 /* Returns the first element in 'self' that satisfies the callback.
  * If no values satisfy the testing function, NULL is returned. */
 __attr_pure PTR_TYPE(array_find)(ARRAY_TYPE(self),
-                                 bool (*callback)(RDONLY_ARRAY_TYPE(self)));
+                                 bool (*callback)(RDONLY_PTR_TYPE(elem)));
 
 /* Behaves the same as 'find' except it returns an index (that can be used with
  * 'at'), or -1 if no element was found.
  */
 __attr_pure
     SSIZE_TYPE(array_find_index)(ARRAY_TYPE(self),
-                                 bool (*callback)(RDONLY_ARRAY_TYPE(self)));
+                                 bool (*callback)(RDONLY_PTR_TYPE(elem)));
 
 /* Behaves the same as 'find' expect it starts the search from the end.
  */
 __attr_pure PTR_TYPE(array_rfind)(ARRAY_TYPE(self),
-                                  bool (*callback)(RDONLY_ARRAY_TYPE(self)));
+                                  bool (*callback)(RDONLY_PTR_TYPE(elem)));
 
 /* Behaves the same as 'find' except it starts the search from the end and
  * returns an index (that can be used with 'at'), or -1 if no element was found.
  */
 __attr_pure
     PTR_TYPE(array_rfind_index)(ARRAY_TYPE(self),
-                                bool (*callback)(RDONLY_ARRAY_TYPE(self)));
+                                bool (*callback)(RDONLY_PTR_TYPE(elem)));
 
 /* Returns a pointer to the element at the specified position.
  */

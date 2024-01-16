@@ -102,7 +102,7 @@ ARRAY_TYPE(array_use_settled_buffer)
 }
 
 ARRAY_TYPE(array_filter)
-(RDONLY_ARRAY_TYPE(self), bool (*callback)(RDONLY_ARRAY_TYPE(self))) {
+(RDONLY_ARRAY_TYPE(self), bool (*callback)(RDONLY_PTR_TYPE(elem))) {
   HR_COMPLAIN_IF(self == NULL);
   HR_COMPLAIN_IF(callback == NULL);
 
