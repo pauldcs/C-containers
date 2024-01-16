@@ -20,6 +20,7 @@ typedef struct {
   size_t _cap;      /* The size of the reserved memory block (in bytes) */
   size_t _elt_size; /* The size of one element (in bytes) */
 
+  bool _is_own_buffer; /* is the array the actual owner of it's buffer */
   bool _settled; /* Once settled, any attempts to reallocate the buffer are
                   * blocked so new pointers to the data are guaranteed to
                   * stay valid until the array is freed, or unsettled. */
@@ -49,6 +50,7 @@ typedef struct {
 #define _typesize(array) array->_elt_size
 #define _settled(array) array->_settled
 #define _freefunc(array) array->_free
+#define _is_owner(array) array->_is_own_buffer
 
 #define _relative_data(array, pos)                                             \
   ((char *)(array)->_ptr + (array)->_elt_size * (pos))
@@ -59,14 +61,19 @@ ARRAY_TYPE(array_create)
 (SIZE_TYPE(elt_size), SIZE_TYPE(n), void (*_free)(void *));
 
 /* Creates an array with 'buffer' as the data, if the buffer was not allocated
- * through the same allocator as for the array, the behavior is undefined. */
-ARRAY_TYPE(array_use_buffer)
+ * through the same allocator as the array, the behavior is undefined.
+ * The array takes full responsability of the buffer once this function is
+ * called.
+ */
+ARRAY_TYPE(array_seize_buffer)
 (PTR_TYPE(*buffer), SIZE_TYPE(bufsize), SIZE_TYPE(elt_size), SIZE_TYPE(n),
  void (*_free)(void *));
 
-/* Works the same as 'use_buffer' but directly sets the array as settled. This
- * blocks potential reallocations and enables the safe use of static memory. */
-ARRAY_TYPE(array_use_settled_buffer)
+/* This function creates an for the buffer passed as params, but the array will
+ * never try to reallocate or free the buffer in use so static buffers can
+ * safely be used.
+ */
+ARRAY_TYPE(array_borrow_buffer)
 (PTR_TYPE(*buffer), SIZE_TYPE(bufsize), SIZE_TYPE(elt_size), SIZE_TYPE(n),
  void (*_free)(void *));
 

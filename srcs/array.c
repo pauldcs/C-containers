@@ -50,6 +50,7 @@ ARRAY_TYPE(array_create)
     _typesize(array) = elt_size;
     _capacity(array) = init_cap;
     _freefunc(array) = free;
+    _is_owner(array) = true;
   }
 
   IF_TRACED(array->_meta.n_allocs = 1);
@@ -63,7 +64,7 @@ ARRAY_TYPE(array_create)
   return (array);
 }
 
-ARRAY_TYPE(array_use_buffer)
+ARRAY_TYPE(array_seize_buffer)
 (PTR_TYPE(*buffer), SIZE_TYPE(bufsize), SIZE_TYPE(elt_size), SIZE_TYPE(n),
  void (*_free)(void *)) {
   HR_COMPLAIN_IF(elt_size == 0);
@@ -80,6 +81,8 @@ ARRAY_TYPE(array_use_buffer)
     _typesize(self) = elt_size;
     _data(self) = buffer;
     _freefunc(self) = _free;
+    _is_owner(self) = true;
+    _settled(self) = false;
   }
 
   IF_TRACED(self->_meta.n_bytes_allocd = bufsize);
@@ -89,14 +92,29 @@ ARRAY_TYPE(array_use_buffer)
   return (self);
 }
 
-ARRAY_TYPE(array_use_settled_buffer)
+ARRAY_TYPE(array_borrow_buffer)
 (PTR_TYPE(*buffer), SIZE_TYPE(bufsize), SIZE_TYPE(elt_size), SIZE_TYPE(n),
  void (*_free)(void *)) {
+  HR_COMPLAIN_IF(elt_size == 0);
+  HR_COMPLAIN_IF(SIZE_T_SAFE_TO_MUL(elt_size, n) == false);
 
-  ARRAY_TYPE(self) = array_use_buffer(buffer, bufsize, elt_size, n, _free);
+  ARRAY_TYPE(self) = NULL;
+
+  self = __array_allocator__._memory_alloc(sizeof(*self));
+
   if (likely(self)) {
-    array_settle(self);
+    (void)builtin_memset(self, 0x00, sizeof(array_t));
+    _capacity(self) = bufsize;
+    _size(self) = n;
+    _typesize(self) = elt_size;
+    _data(self) = buffer;
+    _freefunc(self) = _free;
+    _is_owner(self) = false;
+    _settled(self) = true;
   }
+
+  IF_TRACED(self->_meta.n_bytes_reachable = bufsize);
+  IF_TRACED(self->_meta.n_bytes_in_use = n * elt_size);
 
   return (self);
 }
@@ -186,6 +204,7 @@ ARRAY_TYPE(array_pull)
   _capacity(arr) = buffersize;
   _size(arr) = n_elems;
   _settled(arr) = true;
+  _is_owner(arr) = true;
 
   if (start < end) {
     (void)builtin_memcpy(_data(arr), _relative_data(src, start), buffersize);
@@ -222,6 +241,11 @@ NONE_TYPE(array_kill)(ARRAY_TYPE(self)) {
   HR_COMPLAIN_IF(self == NULL);
 
   array_clear(self);
+
+  if (_is_owner(self)) {
+    __array_allocator__._memory_free(_data(self));
+  }
+
   __array_allocator__._memory_free(self);
 }
 
@@ -617,6 +641,7 @@ NONE_TYPE(array_settle)(ARRAY_TYPE(self)) {
 
 NONE_TYPE(array_unsettle)(ARRAY_TYPE(self)) {
   HR_COMPLAIN_IF(self == NULL);
+  HR_COMPLAIN_IF(_is_owner(self) == false);
 
   _settled(self) = false;
 }
