@@ -10,7 +10,6 @@
 
 // # define DISABLE_HARDENED_RUNTIME
 // # define DISABLE_HARDENED_RUNTIME_LOGGING
-// # define DISABLE_ARRAY_TRACING
 
 #define ARRAY_INITIAL_SIZE 64
 #define META_TRACE_SIZE 10
@@ -179,14 +178,5 @@ typedef struct {
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define ABS(a) ((size_t)(((a) < 0) ? -(a) : (a)))
-
-#ifdef DISABLE_ARRAY_TRACING
-#define IF_TRACED(operation)
-#else
-#define IF_TRACED(operation)                                                   \
-  do {                                                                         \
-    operation;                                                                 \
-  } while (0)
-#endif
 
 #endif /* __INTERNAL_H__ */

@@ -53,14 +53,6 @@ ARRAY_TYPE(array_create)
     _is_owner(array) = true;
   }
 
-  IF_TRACED(array->_meta.n_allocs = 1);
-  IF_TRACED(array->_meta.n_bytes_allocd = init_cap);
-  IF_TRACED(array->_meta.n_bytes_reachable = init_cap);
-  IF_TRACED(array->_meta.trace[array->_meta.tidx].alloc_size = init_cap);
-  IF_TRACED(array->_meta.trace[array->_meta.tidx].pointer = _data(array));
-  IF_TRACED((array->_meta.tidx)++);
-  IF_TRACED((array->_meta.tidx) %= META_TRACE_SIZE);
-
   return (array);
 }
 
@@ -84,10 +76,6 @@ ARRAY_TYPE(array_seize_buffer)
     _is_owner(self) = true;
     _settled(self) = false;
   }
-
-  IF_TRACED(self->_meta.n_bytes_allocd = bufsize);
-  IF_TRACED(self->_meta.n_bytes_reachable = bufsize);
-  IF_TRACED(self->_meta.n_bytes_in_use = n * elt_size);
 
   return (self);
 }
@@ -113,9 +101,6 @@ ARRAY_TYPE(array_borrow_buffer)
     _settled(self) = true;
   }
 
-  IF_TRACED(self->_meta.n_bytes_reachable = bufsize);
-  IF_TRACED(self->_meta.n_bytes_in_use = n * elt_size);
-
   return (self);
 }
 
@@ -124,15 +109,12 @@ ARRAY_TYPE(array_filter)
   HR_COMPLAIN_IF(self == NULL);
   HR_COMPLAIN_IF(callback == NULL);
 
-  ARRAY_TYPE(array) = NULL;
+  ARRAY_TYPE(array) =
+      array_create(_typesize(self), ARRAY_INITIAL_SIZE, _freefunc(self));
 
-  if (unlikely(!array_init(&array, ARRAY_INITIAL_SIZE))) {
+  if (unlikely(!array)) {
     return (NULL);
   }
-
-  _capacity(array) = ARRAY_INITIAL_SIZE;
-  _typesize(array) = _typesize(self);
-  _freefunc(array) = _freefunc(self);
 
   SIZE_TYPE(size) = array_size(self);
   SIZE_TYPE(i) = 0;
@@ -233,8 +215,6 @@ NONE_TYPE(array_clear)(ARRAY_TYPE(self)) {
   }
 
   _size(self) = 0;
-
-  IF_TRACED(self->_meta.n_bytes_in_use = 0);
 }
 
 NONE_TYPE(array_kill)(ARRAY_TYPE(self)) {
@@ -292,15 +272,6 @@ BOOL_TYPE(array_adjust)(ARRAY_TYPE(self), SIZE_TYPE(n)) {
   _data(self) = ptr;
   _capacity(self) = new_size;
 
-  IF_TRACED(self->_meta.n_frees++);
-  IF_TRACED(self->_meta.n_allocs++);
-  IF_TRACED(self->_meta.n_bytes_allocd += new_size);
-  IF_TRACED(self->_meta.n_bytes_reachable = new_size);
-  IF_TRACED(self->_meta.trace[self->_meta.tidx].alloc_size = new_size);
-  IF_TRACED(self->_meta.trace[self->_meta.tidx].pointer = _data(self));
-  IF_TRACED((self->_meta.tidx)++);
-  IF_TRACED((self->_meta.tidx) %= META_TRACE_SIZE);
-
   return (true);
 }
 
@@ -314,8 +285,6 @@ BOOL_TYPE(array_push)(ARRAY_TYPE(self), RDONLY_PTR_TYPE(e)) {
   (void)builtin_memmove(_relative_data(self, _size(self)), e, _typesize(self));
 
   _size(self)++;
-
-  IF_TRACED(self->_meta.n_bytes_in_use += _typesize(self));
 
   return (true);
 }
@@ -335,8 +304,6 @@ NONE_TYPE(array_pop)(ARRAY_TYPE(self), PTR_TYPE(into)) {
   if (_freefunc(self)) {
     _freefunc(self)(ptr);
   }
-
-  IF_TRACED(self->_meta.n_bytes_in_use -= _typesize(self));
 }
 
 BOOL_TYPE(array_pushf)(ARRAY_TYPE(self), PTR_TYPE(e)) {
@@ -372,8 +339,6 @@ BOOL_TYPE(array_insert)(ARRAY_TYPE(self), SIZE_TYPE(p), PTR_TYPE(e)) {
 skip:
   (void)builtin_memcpy(_relative_data(self, p), e, _typesize(self));
   ++_size(self);
-
-  IF_TRACED(self->_meta.n_bytes_in_use += _typesize(self));
 
   return (true);
 }
@@ -412,8 +377,6 @@ skip_moving:
   (void)builtin_memmove(_relative_data(self, p), src, _typesize(self) * n);
   _size(self) += n;
 
-  IF_TRACED(self->_meta.n_bytes_in_use += (n * _typesize(self)));
-
   return (true);
 }
 
@@ -429,8 +392,6 @@ BOOL_TYPE(array_append)(ARRAY_TYPE(self), RDONLY_PTR_TYPE(src), SIZE_TYPE(n)) {
                         _typesize(self) * n);
 
   _size(self) += n;
-
-  IF_TRACED(self->_meta.n_bytes_in_use += (n * _typesize(self)));
 
   return (true);
 }
@@ -483,8 +444,6 @@ NONE_TYPE(array_evict)(ARRAY_TYPE(self), SIZE_TYPE(p)) {
     (void)builtin_memmove(_relative_data(self, p), _relative_data(self, p + 1),
                           n - _typesize(self));
   }
-
-  IF_TRACED(self->_meta.n_bytes_in_use -= _typesize(self));
 }
 
 NONE_TYPE(array_wipe)(ARRAY_TYPE(self), SIZE_TYPE(start), SIZE_TYPE(end)) {
@@ -507,8 +466,6 @@ NONE_TYPE(array_wipe)(ARRAY_TYPE(self), SIZE_TYPE(start), SIZE_TYPE(end)) {
                         (_size(self) - start - n) * _typesize(self));
 
   _size(self) -= n;
-
-  IF_TRACED(self->_meta.n_bytes_in_use -= (n * _typesize(self)));
 }
 
 NONE_TYPE(array_swap_elems)(ARRAY_TYPE(self), SIZE_TYPE(a), SIZE_TYPE(b)) {
@@ -594,8 +551,6 @@ BOOL_TYPE(array_append_from_capacity)(ARRAY_TYPE(self), SIZE_TYPE(n)) {
 
   _size(self) += n;
 
-  IF_TRACED(self->_meta.n_bytes_in_use += n);
-
   return (true);
 }
 
@@ -618,15 +573,6 @@ BOOL_TYPE(array_slimcheck)(ARRAY_TYPE(self)) {
 
       _data(self) = ptr;
       _capacity(self) = size;
-
-      IF_TRACED(self->_meta.n_frees++);
-      IF_TRACED(self->_meta.n_allocs++);
-      IF_TRACED(self->_meta.n_bytes_allocd += size);
-      IF_TRACED(self->_meta.n_bytes_reachable = size);
-      IF_TRACED(self->_meta.trace[self->_meta.tidx].alloc_size = size);
-      IF_TRACED(self->_meta.trace[self->_meta.tidx].pointer = _data(self));
-      IF_TRACED((self->_meta.tidx)++);
-      IF_TRACED((self->_meta.tidx) %= META_TRACE_SIZE);
     }
   }
 
@@ -650,37 +596,4 @@ __attr_pure BOOL_TYPE(array_is_settled)(RDONLY_ARRAY_TYPE(self)) {
   HR_COMPLAIN_IF(self == NULL);
 
   return (_settled(self));
-}
-
-__attr_pure NONE_TYPE(array_trace)(RDONLY_ARRAY_TYPE(self)) {
-  HR_COMPLAIN_IF(self == NULL);
-
-#if defined(DISABLE_STATISTICS)
-  (void)self;
-#else
-
-  size_t i = 0;
-  size_t tidx = self->_meta.tidx;
-  (void)fprintf(stderr, "ALLOC TRACE:\n");
-
-  while (i < 10) {
-    if (i + 1 == tidx)
-      (void)fprintf(stderr, " @ ");
-    else
-      (void)fprintf(stderr, "   ");
-
-    (void)fprintf(stderr, "(%16p): %8ld\n", self->_meta.trace[i].pointer,
-                  self->_meta.trace[i].alloc_size);
-    i++;
-  }
-
-  (void)fprintf(stderr, "\nARRAY SUMMARY:\n");
-  (void)fprintf(stderr, " - %ld elements of %ld bytes:\n", _size(self),
-                _typesize(self));
-  (void)fprintf(
-      stderr, "    - allocations: %ld bytes in %ld blocks (%ld freed)\n",
-      self->_meta.n_bytes_allocd, self->_meta.n_allocs, self->_meta.n_frees);
-  (void)fprintf(stderr, "    - in use:      %ld bytes out of %ld reserved\n",
-                self->_meta.n_bytes_in_use, self->_meta.n_bytes_reachable);
-#endif
 }

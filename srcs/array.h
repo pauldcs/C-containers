@@ -27,21 +27,6 @@ typedef struct {
 
   void (*_free)(void *); /* the element destructor function */
 
-#if defined(DISABLE_ARRAY_TRACING)
-#else
-  struct {
-    size_t n_allocs;          /* allocation counter */
-    size_t n_frees;           /* deallocation counter */
-    size_t n_bytes_allocd;    /* total number of bytes allocated */
-    size_t n_bytes_reachable; /* total number of bytes not deallocated yet */
-    size_t n_bytes_in_use;    /* total number of actively used bytes */
-    struct {
-      void *pointer;     /* the pointer */
-      size_t alloc_size; /* the size of the allocation */
-    } trace[META_TRACE_SIZE];
-    size_t tidx;
-  } _meta;
-#endif /* DISABLE_ARRAY_TRACING */
 } array_t;
 
 #define _data(array) array->_ptr
@@ -277,10 +262,5 @@ __attr_pure PTR_TYPE(array_head)(RDONLY_ARRAY_TYPE(self));
 /* Returns a pointer to the last element in the array.
  */
 __attr_pure PTR_TYPE(array_tail)(RDONLY_ARRAY_TYPE(self));
-
-/* Dumps a trace of the array. If DISABLE_TRACING is defined
- * no data is collected at runtime.
- */
-NONE_TYPE(array_trace)(RDONLY_ARRAY_TYPE(self));
 
 #endif /* __ARRAY_H__*/
